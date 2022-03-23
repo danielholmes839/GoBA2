@@ -3,6 +3,7 @@ package game
 import (
 	"encoding/json"
 	"fmt"
+	"goba2/game/netcode"
 	"time"
 )
 
@@ -12,15 +13,23 @@ type Event struct {
 	Data      json.RawMessage `json:"data"`
 }
 
-type player struct {
-	name      string
-	connected bool
+type User struct {
+	id string
+}
+
+func (u User) ID() string {
+	return u.id
+}
+
+type UserInfo struct {
+	user User
+	conn netcode.Connection
 }
 
 type Game struct {
 	name    string
 	counter int
-	players map[string]*player
+	users   map[string]*UserInfo
 }
 
 func NewGame(name string) *Game {
@@ -28,14 +37,7 @@ func NewGame(name string) *Game {
 		// game
 		name:    name,
 		counter: 0,
-		players: make(map[string]*player),
-	}
-}
-
-func (g *Game) Add(id, name string) {
-	g.players[id] = &player{
-		name:      name,
-		connected: false,
+		users:   make(map[string]*UserInfo),
 	}
 }
 
@@ -44,20 +46,22 @@ func (g *Game) Tick() {
 	g.counter++
 }
 
-func (g *Game) OnConnect(id string) {
+func (g *Game) OnConnect(user User, conn netcode.Connection) error {
 	// connection succeeded
-	fmt.Printf("game: %s new connection id: %s\n", g.name, id)
-	g.players[id].connected = true
+	fmt.Printf("game: %s new connection id: %s\n", g.name, user.id)
+	return nil
 }
 
-func (g *Game) OnConnectError(id string, err error) {
-	// connection failed
-	fmt.Printf("game: %s new connection id: %s error: %s\n", g.name, id, err)
-	delete(g.players, id)
-}
-
-func (g *Game) OnDisconnect(id string) {
+func (g *Game) OnDisconnect(user User) {
 	// connection disconnected
-	fmt.Printf("game: %s closed connection id: %s\n", g.name, id)
-	delete(g.players, id)
+	fmt.Printf("game: %s closed connection id: %s\n", g.name, user.id)
+	delete(g.users, user.id)
+}
+
+func (g *Game) OnShutdown() {
+	fmt.Println("game: shutdown!")
+}
+
+func (g *Game) OnStartup() {
+	fmt.Println("game: startup!")
 }

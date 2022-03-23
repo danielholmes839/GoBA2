@@ -14,19 +14,20 @@ type Server struct {
 }
 
 func (s *Server) GameEndpoint() http.HandlerFunc {
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*600)
+	ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
 	mygame := NewGame("my-game")
 
-	server := &netcode.Server{
-		ServerHooks:     mygame,
-		ServerMetrics:   &netcode.LocalServerMetrics{},
-		Name:            "my-server",
-		MAX_CONNECTIONS: 5,
-		Connections:     make(map[string]netcode.Connection),
-		Tasks:           make(chan func()),
+	server := &netcode.Server[User]{
+		ServerHooks:      mygame,
+		ServerMetrics:    &netcode.LocalServerMetrics{},
+		Name:             "my-server",
+		CONNECTION_LIMIT: 5,
+		Connections:      make(map[string]netcode.Connection),
 	}
 
-	go server.Open(ctx, 64)
+	if err := server.Open(ctx, 64); err != nil {
+		panic(err)
+	}
 
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
@@ -36,6 +37,7 @@ func (s *Server) GameEndpoint() http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		// upgrade the websocket connection
+		token := r.URL.Query().Get("token")
 		conn, err := upgrader.Upgrade(w, r, nil)
 
 		if err != nil {
@@ -44,15 +46,8 @@ func (s *Server) GameEndpoint() http.HandlerFunc {
 		}
 
 		// add the user to the game
-		token := r.URL.Query().Get("token")
-
 		ws := &netcode.Websocket{Conn: conn}
-
-		server.Do(func() {
-			mygame.Add(token, token)
-		})
-
-		err = server.Connect(ctx, ws, ws, token)
+		err = server.Connect(ctx, User{id: token}, ws, ws)
 
 		if err != nil {
 			ws.Close()

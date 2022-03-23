@@ -10,122 +10,136 @@ import (
 
 type ServerMetrics interface {
 	RecordTask(start time.Time, wait, execution time.Duration)
-	RecordTick(start time.Time, execution time.Duration)
+	RecordTick(start time.Time, wait, execution time.Duration)
 }
 
-type ServerHooks interface {
-	Tick()
-	OnConnect(id string)
-	OnConnectError(id string, err error)
-	OnDisconnect(id string)
-}
-
-type Engine interface {
-	Do(task func())
-}
-
-type Identity interface {
+type HasID interface {
 	ID() string
 }
 
-type Server struct {
-	ServerHooks
-	ServerMetrics
-	Name            string
-	Tasks           chan func()
-	Connections     map[string]Connection
-	MAX_CONNECTIONS int
+type ServerHooks[R HasID] interface {
+	Tick()
+	OnConnect(request R, conn Connection) error
+	OnDisconnect(request R)
+	OnShutdown()
+	OnStartup()
 }
 
-func (s *Server) Connect(ctx context.Context, conn Connection, handler io.Writer, id string) error {
+type Server[R HasID] struct {
+	sync.Mutex
+	ServerHooks[R]
+	ServerMetrics
+	Name             string
+	CONNECTION_LIMIT int
+	Connections      map[string]Connection
+	open             bool
+	ctx              context.Context
+}
+
+func (s *Server[R]) Connect(ctx context.Context, request R, conn Connection, handler io.Writer) error {
 	var err error
 
 	s.Do(func() {
-		if len(s.Connections) >= s.MAX_CONNECTIONS {
-			// maximum connections reached
-			err = errors.New("already connected")
-			s.OnConnectError(id, err)
+		id := request.ID()
+		if !s.open {
+			err = errors.New("server closed")
+			return
+		}
+
+		if s.CONNECTION_LIMIT == len(s.Connections) {
+			err = errors.New("server full")
 			return
 		}
 
 		if _, found := s.Connections[id]; found {
-			// already connected
-			err = errors.New("maximum connections reached")
-			s.OnConnectError(id, err)
+			err = errors.New("connection id already exists")
 			return
 		}
+
+		if err = s.OnConnect(request, conn); err != nil {
+			return
+		}
+
+		s.Connections[id] = conn
 
 		go conn.Open(ctx, handler, func() {
 			// disconnect the client
 			s.Do(func() {
-				delete(s.Connections, id)
-				s.OnDisconnect(id)
+				if s.open {
+					s.OnDisconnect(request)
+					delete(s.Connections, id)
+				}
 			})
 		})
-
-		s.Connections[id] = conn
-		s.OnConnect(id)
 	})
 
 	return err
 }
 
-func (s *Server) Open(ctx context.Context, tps int) {
+func (s *Server[R]) Open(ctx context.Context, tps int) error {
 	// calculate the delay to achieve the correct tps
+	s.Lock()
+	defer s.Unlock()
+
+	if s.open {
+		return errors.New("server already open")
+	}
+
+	s.open = true
+
 	target := time.Duration(int64(float64(time.Second) / float64(tps)))
 	ticker := time.NewTicker(target)
-	open := true
+
+	shutdown := func() {
+		s.Lock()
+		defer s.Unlock()
+
+		for _, connection := range s.Connections {
+			connection.Close()
+		}
+
+		s.OnShutdown()
+		s.open = false
+	}
 
 	go func() {
-		<-ctx.Done()
-		time.Sleep(time.Second * 5)
+		var ready, start, done time.Time
+		for {
+			select {
+			case <-ctx.Done():
+				shutdown()
+				return
 
-		// stop the server
-		open = false
-		ticker.Stop()
-		close(s.Tasks)
-	}()
-
-	for open {
-		select {
-		case <-ticker.C:
-			// execute ticks
-			now := time.Now()
-			s.Tick()
-			s.RecordTick(now, time.Since(now))
-			break
-
-		case task, ok := <-s.Tasks:
-			// execute task
-			if ok {
-				task()
+			case <-ticker.C:
+				// execute ticks
+				start = time.Now()
+				s.Lock()
+				ready = time.Now()
+				s.Tick()
+				done = time.Now()
+				s.Unlock()
+				s.RecordTick(start, start.Sub(ready), done.Sub(ready))
 			}
 		}
-	}
+	}()
+
+	s.OnStartup()
+	return nil
 }
 
-func (s *Server) Do(task func()) {
-	// wait group to block until the task has completed
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-
+func (s *Server[R]) Do(task func()) {
 	// measure the wait and execution time of tasks
-	var ready, started time.Time
-	var wait, execution time.Duration
+	var ready, start, done time.Time
+
+	// measure when the waiting started
 	ready = time.Now()
+	s.Lock()
 
-	// execute the task
-	s.Tasks <- func() {
-		started = time.Now()
-		task()
-		wg.Done()
-	}
+	// measure when the task started
+	start = time.Now()
+	task()
+	done = time.Now()
+	s.Unlock()
 
-	// block
-	wg.Wait()
-
-	// record metrics
-	execution = time.Now().Sub(started)
-	wait = started.Sub(ready)
-	s.RecordTask(ready, wait, execution)
+	s.RecordTask(start, start.Sub(ready), done.Sub(ready))
 }

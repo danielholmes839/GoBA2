@@ -17,7 +17,7 @@ func (m *LocalServerMetrics) RecordTask(start time.Time, wait, execution time.Du
 	fmt.Printf("task: %s wait: %s execution: %s\n", start.UTC().Format("2006-01-02T15:04:05Z"), wait, execution)
 }
 
-func (m *LocalServerMetrics) RecordTick(start time.Time, execution time.Duration) {
+func (m *LocalServerMetrics) RecordTick(start time.Time, wait, execution time.Duration) {
 	m.ticksExecutionTime += execution
 	m.ticks++
 
