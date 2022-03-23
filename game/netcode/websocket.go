@@ -9,11 +9,6 @@ import (
 
 type Websocket struct {
 	*websocket.Conn
-	Id string
-}
-
-func (ws *Websocket) ID() string {
-	return ws.Id
 }
 
 func (ws *Websocket) Open(ctx context.Context, handler io.Writer, close Callback) error {
@@ -24,13 +19,13 @@ func (ws *Websocket) Open(ctx context.Context, handler io.Writer, close Callback
 	go func() {
 		// websocket closes
 		<-ctx.Done()
-		ws.Close()
+		ws.Conn.Close()
 		close()
 	}()
 
 	for {
 		// read messages
-		_, data, err := ws.ReadMessage()
+		_, data, err := ws.Conn.ReadMessage()
 		if err != nil {
 			return err
 		}
@@ -40,7 +35,7 @@ func (ws *Websocket) Open(ctx context.Context, handler io.Writer, close Callback
 
 func (ws *Websocket) Write(data []byte) (int, error) {
 	// write to the connection implements
-	err := ws.WriteMessage(websocket.BinaryMessage, data)
+	err := ws.Conn.WriteMessage(websocket.BinaryMessage, data)
 	if err != nil {
 		return 0, err
 	}

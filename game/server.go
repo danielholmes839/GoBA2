@@ -17,7 +17,7 @@ func (s *Server) GameEndpoint() http.HandlerFunc {
 	ctx, _ := context.WithTimeout(context.Background(), time.Second*600)
 	mygame := NewGame("my-game")
 
-	server := netcode.Server{
+	server := &netcode.Server{
 		ServerHooks:     mygame,
 		ServerMetrics:   &netcode.LocalServerMetrics{},
 		Name:            "my-server",
@@ -45,8 +45,14 @@ func (s *Server) GameEndpoint() http.HandlerFunc {
 
 		// add the user to the game
 		token := r.URL.Query().Get("token")
-		ws := &netcode.Websocket{Id: token, Conn: conn}
-		err = server.Connect(ctx, ws, ws)
+
+		ws := &netcode.Websocket{conn}
+
+		server.Do(func() {
+			mygame.Add(token, token)
+		})
+
+		err = server.Connect(ctx, ws, ws, token)
 
 		if err != nil {
 			ws.Close()

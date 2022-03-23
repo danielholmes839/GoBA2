@@ -15,9 +15,17 @@ type ServerMetrics interface {
 
 type ServerHooks interface {
 	Tick()
-	OnConnectOK(id string)
+	OnConnect(id string)
 	OnConnectError(id string, err error)
 	OnDisconnect(id string)
+}
+
+type Engine interface {
+	Do(task func())
+}
+
+type Identity interface {
+	ID() string
 }
 
 type Server struct {
@@ -29,9 +37,8 @@ type Server struct {
 	MAX_CONNECTIONS int
 }
 
-func (s *Server) Connect(ctx context.Context, conn Connection, handler io.Writer) error {
+func (s *Server) Connect(ctx context.Context, conn Connection, handler io.Writer, id string) error {
 	var err error
-	id := conn.ID()
 
 	s.Do(func() {
 		if len(s.Connections) >= s.MAX_CONNECTIONS {
@@ -41,7 +48,7 @@ func (s *Server) Connect(ctx context.Context, conn Connection, handler io.Writer
 			return
 		}
 
-		if _, found := s.Connections[conn.ID()]; found {
+		if _, found := s.Connections[id]; found {
 			// already connected
 			err = errors.New("maximum connections reached")
 			s.OnConnectError(id, err)
@@ -57,30 +64,29 @@ func (s *Server) Connect(ctx context.Context, conn Connection, handler io.Writer
 		})
 
 		s.Connections[id] = conn
-		s.OnConnectOK(id)
+		s.OnConnect(id)
 	})
 
 	return err
 }
 
 func (s *Server) Open(ctx context.Context, tps int) {
-	loop := true
-
 	// calculate the delay to achieve the correct tps
 	target := time.Duration(int64(float64(time.Second) / float64(tps)))
 	ticker := time.NewTicker(target)
+	open := true
 
 	go func() {
 		<-ctx.Done()
 		time.Sleep(time.Second * 5)
 
 		// stop the server
+		open = false
 		ticker.Stop()
 		close(s.Tasks)
-		loop = false
 	}()
 
-	for loop {
+	for open {
 		select {
 		case <-ticker.C:
 			// execute ticks
