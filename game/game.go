@@ -22,21 +22,28 @@ type User struct {
 }
 
 type Game struct {
-	netcode.Server
-
-	id          int
+	*netcode.Server
+	name        string
 	counter     int
 	connections map[string]netcode.Connection
 	tasks       chan func()
 }
 
-func NewGame(id int) *Game {
+func NewGame(name string) *Game {
 	game := &Game{
-		id:          id,
+		// server
+		Server: &netcode.Server{
+			ServerMetrics: &netcode.LocalServerMetrics{},
+			Name:          name,
+			Tasks:         make(chan func()),
+		},
+		// game
+		name:        name,
 		counter:     0,
 		connections: make(map[string]netcode.Connection),
 		tasks:       make(chan func()),
 	}
+	game.TickFunc = game.tick
 	return game
 }
 
@@ -58,45 +65,6 @@ func (g *Game) Connect(ctx context.Context, conn netcode.Connection, user *User)
 	return nil
 }
 
-func (g *Game) Run(ctx context.Context, tps int) {
-	// create the ticker
-	target := time.Duration(int64(float64(time.Second) / float64(tps)))
-	ticker := time.NewTicker(target)
-
-	metricInterval := time.Duration(5)
-	metrics := time.NewTicker(time.Second * metricInterval)
-
-	// stop the ticker
-	defer func() {
-		ticker.Stop()
-		fmt.Printf("game: %d, stopped\n", g.id)
-	}()
-
-	fmt.Printf("game: %d, started\n", g.id)
-
-	ticks := 0
-	// last := time.Now()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			// diff := time.Since(last)
-			// last = time.Now()
-			// fmt.Println(diff)
-			ticks++
-			g.tick()
-
-		case <-metrics.C:
-			fmt.Printf("TPS: %d\n", int(ticks/int(metricInterval)))
-			ticks = 0
-
-		case task := <-g.tasks:
-			task()
-		}
-	}
-}
-
 func (g *Game) connect(conn netcode.Connection, user *User) error {
 	// connect a player
 	var err error
@@ -109,7 +77,7 @@ func (g *Game) connect(conn netcode.Connection, user *User) error {
 	})
 
 	if err == nil {
-		fmt.Printf("game: %d, user connected: %s\n", g.id, user.id)
+		fmt.Printf("game: %s, user connected: %s\n", g.name, user.id)
 	}
 
 	return err
@@ -121,10 +89,11 @@ func (g *Game) disconnect(user *User) {
 		delete(g.connections, user.id)
 	})
 
-	fmt.Printf("game: %d, user disconnected: %s\n", g.id, user.id)
+	fmt.Printf("game: %s, user disconnected: %s\n", g.name, user.id)
 }
 
 func (g *Game) tick() {
+	time.Sleep(time.Millisecond * 10)
 	g.counter++
 	// fmt.Println(g.counter, len(g.connections))
 

@@ -14,7 +14,7 @@ type Server struct {
 
 func (s *Server) GameEndpoint() http.HandlerFunc {
 	ctx := context.Background()
-	g := NewGame(1)
+	g := NewGame("my-server")
 	go g.Run(ctx, 64)
 
 	upgrader := websocket.Upgrader{
