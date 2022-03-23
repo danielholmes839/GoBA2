@@ -9,9 +9,14 @@ import (
 
 type Websocket struct {
 	*websocket.Conn
+	Id string
 }
 
-func (ws *Websocket) Open(ctx context.Context, handler io.Writer, close Callback) {
+func (ws *Websocket) ID() string {
+	return ws.Id
+}
+
+func (ws *Websocket) Open(ctx context.Context, handler io.Writer, close Callback) error {
 	// create a context
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -27,7 +32,7 @@ func (ws *Websocket) Open(ctx context.Context, handler io.Writer, close Callback
 		// read messages
 		_, data, err := ws.ReadMessage()
 		if err != nil {
-			break
+			return err
 		}
 		handler.Write(data)
 	}

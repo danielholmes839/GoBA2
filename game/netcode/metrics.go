@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+const interval = 5
+
 type LocalServerMetrics struct {
 	ticks              int
 	ticksExecutionTime time.Duration
@@ -19,9 +21,9 @@ func (m *LocalServerMetrics) RecordTick(start time.Time, execution time.Duration
 	m.ticksExecutionTime += execution
 	m.ticks++
 
-	if time.Since(m.ticksRecordedAt) > time.Second*2 {
+	if time.Since(m.ticksRecordedAt) > time.Second*5 {
 		avg := time.Duration(int64(m.ticksExecutionTime) / int64(m.ticks)).Milliseconds()
-		fmt.Printf("tps: %d tick-duration: %dms\n", m.ticks/2, avg)
+		fmt.Printf("tps: %d tick-duration: %dms\n", m.ticks/5, avg)
 		m.ticks = 0
 		m.ticksExecutionTime = 0
 		m.ticksRecordedAt = time.Now()

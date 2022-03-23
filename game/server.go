@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"goba2/game/netcode"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -13,9 +14,19 @@ type Server struct {
 }
 
 func (s *Server) GameEndpoint() http.HandlerFunc {
-	ctx := context.Background()
-	g := NewGame("my-server")
-	go g.Run(ctx, 64)
+	ctx, _ := context.WithTimeout(context.Background(), time.Second*600)
+	mygame := NewGame("my-game")
+
+	server := netcode.Server{
+		ServerHooks:     mygame,
+		ServerMetrics:   &netcode.LocalServerMetrics{},
+		Name:            "my-server",
+		MAX_CONNECTIONS: 5,
+		Connections:     make(map[string]netcode.Connection),
+		Tasks:           make(chan func()),
+	}
+
+	go server.Open(ctx, 64)
 
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
@@ -34,8 +45,8 @@ func (s *Server) GameEndpoint() http.HandlerFunc {
 
 		// add the user to the game
 		token := r.URL.Query().Get("token")
-		ws := &netcode.Websocket{Conn: conn}
-		err = g.Connect(ctx, ws, &User{id: token})
+		ws := &netcode.Websocket{Id: token, Conn: conn}
+		err = server.Connect(ctx, ws, ws)
 
 		if err != nil {
 			ws.Close()

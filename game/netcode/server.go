@@ -2,7 +2,8 @@ package netcode
 
 import (
 	"context"
-	"fmt"
+	"errors"
+	"io"
 	"sync"
 	"time"
 )
@@ -12,43 +13,87 @@ type ServerMetrics interface {
 	RecordTick(start time.Time, execution time.Duration)
 }
 
-// TODO
-// type ServerHooks interface {
-// 	Opened()
-// 	Closed()
-// }
-
-type Server struct {
-	ServerMetrics
-	Name     string
-	Tasks    chan func()
-	TickFunc func()
+type ServerHooks interface {
+	Tick()
+	OnConnectOK(id string)
+	OnConnectError(id string, err error)
+	OnDisconnect(id string)
 }
 
-func (s *Server) Run(ctx context.Context, tps int) {
-	// calculate the
+type Server struct {
+	ServerHooks
+	ServerMetrics
+	Name            string
+	Tasks           chan func()
+	Connections     map[string]Connection
+	MAX_CONNECTIONS int
+}
+
+func (s *Server) Connect(ctx context.Context, conn Connection, handler io.Writer) error {
+	var err error
+	id := conn.ID()
+
+	s.Do(func() {
+		if len(s.Connections) >= s.MAX_CONNECTIONS {
+			// maximum connections reached
+			err = errors.New("already connected")
+			s.OnConnectError(id, err)
+			return
+		}
+
+		if _, found := s.Connections[conn.ID()]; found {
+			// already connected
+			err = errors.New("maximum connections reached")
+			s.OnConnectError(id, err)
+			return
+		}
+
+		go conn.Open(ctx, handler, func() {
+			// disconnect the client
+			s.Do(func() {
+				delete(s.Connections, id)
+				s.OnDisconnect(id)
+			})
+		})
+
+		s.Connections[id] = conn
+		s.OnConnectOK(id)
+	})
+
+	return err
+}
+
+func (s *Server) Open(ctx context.Context, tps int) {
+	loop := true
+
+	// calculate the delay to achieve the correct tps
 	target := time.Duration(int64(float64(time.Second) / float64(tps)))
 	ticker := time.NewTicker(target)
 
-	defer func() {
+	go func() {
+		<-ctx.Done()
+		time.Sleep(time.Second * 5)
+
+		// stop the server
 		ticker.Stop()
-		fmt.Printf("server: %s, stopped\n", s.Name)
+		close(s.Tasks)
+		loop = false
 	}()
 
-	fmt.Printf("server: %s, started\n", s.Name)
-	for {
+	for loop {
 		select {
-		case <-ctx.Done():
-			// context cancelled
-			return
 		case <-ticker.C:
 			// execute ticks
 			now := time.Now()
-			s.TickFunc()
+			s.Tick()
 			s.RecordTick(now, time.Since(now))
-		case task := <-s.Tasks:
+			break
+
+		case task, ok := <-s.Tasks:
 			// execute task
-			task()
+			if ok {
+				task()
+			}
 		}
 	}
 }

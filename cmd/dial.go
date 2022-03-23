@@ -58,10 +58,14 @@ func dial(ctx context.Context, n int) {
 
 func main() {
 	ctx := context.Background()
-	for i := 0; i < 100; i++ {
+	go dial(ctx, 0)
+	for i := 0; i < 5; i++ {
 		go dial(ctx, i)
 		time.Sleep(time.Millisecond * 50)
 	}
 
 	dial(ctx, 100)
+	done := make(chan struct{})
+	<-done
+
 }
