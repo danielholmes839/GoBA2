@@ -46,7 +46,7 @@ func (s *Server) GameEndpoint() http.HandlerFunc {
 		// add the user to the game
 		token := r.URL.Query().Get("token")
 
-		ws := &netcode.Websocket{conn}
+		ws := &netcode.Websocket{Conn: conn}
 
 		server.Do(func() {
 			mygame.Add(token, token)
