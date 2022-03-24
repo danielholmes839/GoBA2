@@ -13,6 +13,12 @@ type ServerMetrics interface {
 	RecordTick(start time.Time, wait, execution time.Duration)
 }
 
+type Engine interface {
+	ExecuteAfter(time.Duration, func())
+	ExecuteInterval(time.Duration, func())
+	ExecuteAt(time.Time, func())
+}
+
 type HasID interface {
 	ID() string
 }
@@ -25,15 +31,24 @@ type ServerHooks[R HasID] interface {
 	OnStartup()
 }
 
+func NewServer[R HasID](game ServerHooks[R], metrics ServerMetrics, connectionLimit int) *Server[R] {
+	return &Server[R]{
+		Mutex:           sync.Mutex{},
+		game:            game,
+		metrics:         metrics,
+		connectionLimit: connectionLimit,
+		connections:     make(map[string]Connection),
+		open:            false,
+	}
+}
+
 type Server[R HasID] struct {
 	sync.Mutex
-	ServerHooks[R]
-	ServerMetrics
-	Name             string
-	CONNECTION_LIMIT int
-	Connections      map[string]Connection
-	open             bool
-	ctx              context.Context
+	game            ServerHooks[R]
+	metrics         ServerMetrics
+	connectionLimit int
+	connections     map[string]Connection
+	open            bool
 }
 
 func (s *Server[R]) Connect(ctx context.Context, request R, conn Connection, handler io.Writer) error {
@@ -41,33 +56,34 @@ func (s *Server[R]) Connect(ctx context.Context, request R, conn Connection, han
 
 	s.Do(func() {
 		id := request.ID()
+
 		if !s.open {
 			err = errors.New("server closed")
 			return
 		}
 
-		if s.CONNECTION_LIMIT == len(s.Connections) {
+		if s.connectionLimit == len(s.connections) {
 			err = errors.New("server full")
 			return
 		}
 
-		if _, found := s.Connections[id]; found {
-			err = errors.New("connection id already exists")
+		if _, found := s.connections[id]; found {
+			err = errors.New("id taken")
 			return
 		}
 
-		if err = s.OnConnect(request, conn); err != nil {
+		if err = s.game.OnConnect(request, conn); err != nil {
 			return
 		}
 
-		s.Connections[id] = conn
+		s.connections[id] = conn
 
 		go conn.Open(ctx, handler, func() {
 			// disconnect the client
 			s.Do(func() {
 				if s.open {
-					s.OnDisconnect(request)
-					delete(s.Connections, id)
+					s.game.OnDisconnect(request)
+					delete(s.connections, id)
 				}
 			})
 		})
@@ -94,11 +110,11 @@ func (s *Server[R]) Open(ctx context.Context, tps int) error {
 		s.Lock()
 		defer s.Unlock()
 
-		for _, connection := range s.Connections {
+		for _, connection := range s.connections {
 			connection.Close()
 		}
 
-		s.OnShutdown()
+		s.game.OnShutdown()
 		s.open = false
 	}
 
@@ -115,15 +131,15 @@ func (s *Server[R]) Open(ctx context.Context, tps int) error {
 				start = time.Now()
 				s.Lock()
 				ready = time.Now()
-				s.Tick()
+				s.game.Tick()
 				done = time.Now()
 				s.Unlock()
-				s.RecordTick(start, start.Sub(ready), done.Sub(ready))
+				s.metrics.RecordTick(start, start.Sub(ready), done.Sub(ready))
 			}
 		}
 	}()
 
-	s.OnStartup()
+	s.game.OnStartup()
 	return nil
 }
 
@@ -141,5 +157,5 @@ func (s *Server[R]) Do(task func()) {
 	done = time.Now()
 	s.Unlock()
 
-	s.RecordTask(start, start.Sub(ready), done.Sub(ready))
+	s.metrics.RecordTask(start, start.Sub(ready), done.Sub(start))
 }

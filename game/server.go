@@ -14,16 +14,14 @@ type Server struct {
 }
 
 func (s *Server) GameEndpoint() http.HandlerFunc {
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, _ := context.WithTimeout(context.Background(), time.Second*30)
 	mygame := NewGame("my-game")
 
-	server := &netcode.Server[User]{
-		ServerHooks:      mygame,
-		ServerMetrics:    &netcode.LocalServerMetrics{},
-		Name:             "my-server",
-		CONNECTION_LIMIT: 5,
-		Connections:      make(map[string]netcode.Connection),
-	}
+	server := netcode.NewServer[User](
+		mygame,
+		&netcode.LocalServerMetrics{},
+		5,
+	)
 
 	if err := server.Open(ctx, 64); err != nil {
 		panic(err)
@@ -47,11 +45,10 @@ func (s *Server) GameEndpoint() http.HandlerFunc {
 
 		// add the user to the game
 		ws := &netcode.Websocket{Conn: conn}
-		err = server.Connect(ctx, User{id: token}, ws, ws)
-
-		if err != nil {
+		
+		if err = server.Connect(ctx, User{id: token}, ws, ws); err != nil {
+			fmt.Println("connection error:", err)		
 			ws.Close()
-			fmt.Println(err)
 		}
 	}
 }
