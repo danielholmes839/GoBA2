@@ -3,7 +3,7 @@ package game
 import (
 	"context"
 	"fmt"
-	"goba2/game/netcode"
+	"goba2/netcode"
 	"net/http"
 	"time"
 
@@ -17,7 +17,6 @@ func (s *Server) GameEndpoint() http.HandlerFunc {
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		time.Sleep(time.Second * 30)
-		fmt.Println("parent context cancelled")
 		cancel()
 	}()
 
@@ -25,8 +24,7 @@ func (s *Server) GameEndpoint() http.HandlerFunc {
 
 	server := netcode.NewServer[User](mygame, 5).
 		WithMetrics(&netcode.LocalServerMetrics{})
-	
-		
+
 	if err := server.Open(ctx, 64); err != nil {
 		panic(err)
 	}

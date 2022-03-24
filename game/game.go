@@ -1,17 +1,10 @@
 package game
 
 import (
-	"encoding/json"
 	"fmt"
-	"goba2/game/netcode"
+	"goba2/netcode"
 	"time"
 )
-
-type Event struct {
-	Code      int             `json:"code"`
-	Timestamp time.Time       `json:"timestamp"`
-	Data      json.RawMessage `json:"data"`
-}
 
 type User struct {
 	id string
@@ -63,16 +56,16 @@ func (g *Game) OnShutdown() {
 }
 
 func (g *Game) OnStartup(engine netcode.Engine) {
-	engine.After(time.Second*3, func() {
+	engine.After("example 1", time.Second*3, func() {
 		fmt.Println("3 second after (after)")
 	})
 
-	engine.At(time.Now().Add(time.Second*3), func() {
+	engine.At("example 2", time.Now().Add(time.Second*3), func() {
 		fmt.Println("3 second after (at)")
 	})
 
-	engine.Interval(time.Second, func() {
-		fmt.Println("my interval")
+	engine.Interval("example 3", time.Second*10, func() {
+		fmt.Println("10 second interval")
 	})
 
 	fmt.Println("game: startup!")

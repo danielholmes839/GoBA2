@@ -9,7 +9,7 @@ type engine[T Token] struct {
 	*Server[T]
 }
 
-func (e *engine[T]) After(d time.Duration, task func()) {
+func (e *engine[T]) After(task string, d time.Duration, f func()) {
 	go func() {
 		ctx, cancel := context.WithTimeout(e.ctx, d)
 		defer cancel()
@@ -19,11 +19,17 @@ func (e *engine[T]) After(d time.Duration, task func()) {
 			return
 		}
 
-		e.Do(task)
+		e.Do(task, f)
 	}()
 }
 
-func (e *engine[T]) Interval(d time.Duration, task func()) {
+func (e *engine[T]) At(task string, t time.Time, f func()) {
+	if now := time.Now(); now.Before(t) {
+		e.After(task, t.Sub(now), f)
+	}
+}
+
+func (e *engine[T]) Interval(task string, d time.Duration, f func()) {
 	go func() {
 		ticker := time.NewTicker(d)
 		defer ticker.Stop()
@@ -33,14 +39,8 @@ func (e *engine[T]) Interval(d time.Duration, task func()) {
 			case <-e.ctx.Done():
 				return
 			case <-ticker.C:
-				e.Do(task)
+				e.Do(task, f)
 			}
 		}
 	}()
-}
-
-func (e *engine[T]) At(t time.Time, task func()) {
-	if now := time.Now(); now.Before(t) {
-		e.After(t.Sub(now), task)
-	}
 }

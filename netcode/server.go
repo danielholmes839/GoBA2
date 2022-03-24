@@ -43,7 +43,7 @@ func (s *Server[T]) WithMetrics(metrics ServerMetrics) *Server[T] {
 func (s *Server[T]) Connect(ctx context.Context, token T, conn Connection, handler io.Writer) error {
 	var err error
 
-	s.Do(func() {
+	s.Do("connect", func() {
 		id := token.ID()
 
 		if !s.open {
@@ -69,7 +69,7 @@ func (s *Server[T]) Connect(ctx context.Context, token T, conn Connection, handl
 
 		go conn.Open(ctx, handler, func() {
 			// disconnect the client
-			s.Do(func() {
+			s.Do("disconnect", func() {
 				if s.open {
 					s.game.OnDisconnect(token)
 					delete(s.connections, id)
@@ -133,7 +133,7 @@ func (s *Server[T]) Open(ctx context.Context, tps int) error {
 	return nil
 }
 
-func (s *Server[T]) Do(task func()) {
+func (s *Server[T]) Do(task string, f func()) {
 	// measure the wait and execution time of tasks
 	var ready, start, done time.Time
 
@@ -143,9 +143,9 @@ func (s *Server[T]) Do(task func()) {
 
 	// measure when the task started
 	start = time.Now()
-	task()
+	f()
 	done = time.Now()
 	s.Unlock()
 
-	s.metrics.RecordTask(start, start.Sub(ready), done.Sub(start))
+	s.metrics.RecordTask(task, start, start.Sub(ready), done.Sub(start))
 }
