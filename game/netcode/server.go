@@ -8,33 +8,10 @@ import (
 	"time"
 )
 
-type ServerMetrics interface {
-	RecordTask(start time.Time, wait, execution time.Duration)
-	RecordTick(start time.Time, wait, execution time.Duration)
-}
-
-type Engine interface {
-	After(time.Duration, func())
-	At(time.Time, func())
-	Interval(time.Duration, func())
-}
-
-type Token interface {
-	ID() string
-}
-
 type ServerEngine struct {
 	sync.Mutex
 	ctx context.Context
 	do  func()
-}
-
-type ServerHooks[T Token] interface {
-	Tick()
-	OnConnect(token T, conn Connection) error
-	OnDisconnect(token T)
-	OnStartup(engine Engine)
-	OnShutdown()
 }
 
 func NewServer[T Token](game ServerHooks[T], metrics ServerMetrics, connectionLimit int) *Server[T] {
@@ -147,7 +124,7 @@ func (s *Server[T]) Open(ctx context.Context, tps int) error {
 		}
 	}()
 
-	s.game.OnStartup(s)
+	s.game.OnStartup(&engine[T]{s})
 	return nil
 }
 
@@ -166,40 +143,4 @@ func (s *Server[T]) Do(task func()) {
 	s.Unlock()
 
 	s.metrics.RecordTask(start, start.Sub(ready), done.Sub(start))
-}
-
-func (s *Server[T]) After(d time.Duration, task func()) {
-	go func() {
-		ctx, cancel := context.WithTimeout(s.ctx, d)
-		defer cancel()
-
-		<-ctx.Done()
-		if ctx.Err() == context.Canceled {
-			return
-		}
-
-		s.Do(task)
-	}()
-}
-
-func (s *Server[T]) Interval(d time.Duration, task func()) {
-	go func() {
-		ticker := time.NewTicker(d)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-s.ctx.Done():
-				return
-			case <-ticker.C:
-				s.Do(task)
-			}
-		}
-	}()
-}
-
-func (s *Server[T]) At(t time.Time, task func()) {
-	if now := time.Now(); now.Before(t) {
-		s.After(t.Sub(now), task)
-	}
 }
