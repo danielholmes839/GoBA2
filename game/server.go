@@ -23,12 +23,10 @@ func (s *Server) GameEndpoint() http.HandlerFunc {
 
 	mygame := NewGame("my-game")
 
-	server := netcode.NewServer[User](
-		mygame,
-		&netcode.LocalServerMetrics{},
-		5,
-	)
-
+	server := netcode.NewServer[User](mygame, 5).
+		WithMetrics(&netcode.LocalServerMetrics{})
+	
+		
 	if err := server.Open(ctx, 64); err != nil {
 		panic(err)
 	}

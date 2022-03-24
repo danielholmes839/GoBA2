@@ -29,3 +29,12 @@ func (m *LocalServerMetrics) RecordTick(start time.Time, wait, execution time.Du
 		m.ticksRecordedAt = time.Now()
 	}
 }
+
+type EmptyMetrics struct {
+}
+
+func (m *EmptyMetrics) RecordTask(start time.Time, wait, execution time.Duration) {
+}
+
+func (m *EmptyMetrics) RecordTick(start time.Time, wait, execution time.Duration) {
+}

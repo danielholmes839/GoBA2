@@ -14,11 +14,11 @@ type ServerEngine struct {
 	do  func()
 }
 
-func NewServer[T Token](game ServerHooks[T], metrics ServerMetrics, connectionLimit int) *Server[T] {
+func NewServer[T Token](game ServerHooks[T], connectionLimit int) *Server[T] {
 	return &Server[T]{
 		Mutex:           sync.Mutex{},
 		game:            game,
-		metrics:         metrics,
+		metrics:         &EmptyMetrics{},
 		connectionLimit: connectionLimit,
 		connections:     make(map[string]Connection),
 		open:            false,
@@ -33,6 +33,11 @@ type Server[T Token] struct {
 	connections     map[string]Connection
 	open            bool
 	ctx             context.Context
+}
+
+func (s *Server[T]) WithMetrics(metrics ServerMetrics) *Server[T] {
+	s.metrics = metrics
+	return s
 }
 
 func (s *Server[T]) Connect(ctx context.Context, token T, conn Connection, handler io.Writer) error {
