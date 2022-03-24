@@ -62,6 +62,18 @@ func (g *Game) OnShutdown() {
 	fmt.Println("game: shutdown!")
 }
 
-func (g *Game) OnStartup() {
+func (g *Game) OnStartup(engine netcode.Engine) {
+	engine.After(time.Second*3, func() {
+		fmt.Println("3 second after (after)")
+	})
+
+	engine.At(time.Now().Add(time.Second*3), func() {
+		fmt.Println("3 second after (at)")
+	})
+
+	engine.Interval(time.Second, func() {
+		fmt.Println("my interval")
+	})
+
 	fmt.Println("game: startup!")
 }

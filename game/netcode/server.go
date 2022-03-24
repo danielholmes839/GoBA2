@@ -14,25 +14,31 @@ type ServerMetrics interface {
 }
 
 type Engine interface {
-	ExecuteAfter(time.Duration, func())
-	ExecuteInterval(time.Duration, func())
-	ExecuteAt(time.Time, func())
+	After(time.Duration, func())
+	At(time.Time, func())
+	Interval(time.Duration, func())
 }
 
-type HasID interface {
+type Token interface {
 	ID() string
 }
 
-type ServerHooks[R HasID] interface {
-	Tick()
-	OnConnect(request R, conn Connection) error
-	OnDisconnect(request R)
-	OnShutdown()
-	OnStartup()
+type ServerEngine struct {
+	sync.Mutex
+	ctx context.Context
+	do  func()
 }
 
-func NewServer[R HasID](game ServerHooks[R], metrics ServerMetrics, connectionLimit int) *Server[R] {
-	return &Server[R]{
+type ServerHooks[T Token] interface {
+	Tick()
+	OnConnect(token T, conn Connection) error
+	OnDisconnect(token T)
+	OnStartup(engine Engine)
+	OnShutdown()
+}
+
+func NewServer[T Token](game ServerHooks[T], metrics ServerMetrics, connectionLimit int) *Server[T] {
+	return &Server[T]{
 		Mutex:           sync.Mutex{},
 		game:            game,
 		metrics:         metrics,
@@ -42,20 +48,21 @@ func NewServer[R HasID](game ServerHooks[R], metrics ServerMetrics, connectionLi
 	}
 }
 
-type Server[R HasID] struct {
+type Server[T Token] struct {
 	sync.Mutex
-	game            ServerHooks[R]
+	game            ServerHooks[T]
 	metrics         ServerMetrics
 	connectionLimit int
 	connections     map[string]Connection
 	open            bool
+	ctx             context.Context
 }
 
-func (s *Server[R]) Connect(ctx context.Context, request R, conn Connection, handler io.Writer) error {
+func (s *Server[T]) Connect(ctx context.Context, token T, conn Connection, handler io.Writer) error {
 	var err error
 
 	s.Do(func() {
-		id := request.ID()
+		id := token.ID()
 
 		if !s.open {
 			err = errors.New("server closed")
@@ -72,7 +79,7 @@ func (s *Server[R]) Connect(ctx context.Context, request R, conn Connection, han
 			return
 		}
 
-		if err = s.game.OnConnect(request, conn); err != nil {
+		if err = s.game.OnConnect(token, conn); err != nil {
 			return
 		}
 
@@ -82,7 +89,7 @@ func (s *Server[R]) Connect(ctx context.Context, request R, conn Connection, han
 			// disconnect the client
 			s.Do(func() {
 				if s.open {
-					s.game.OnDisconnect(request)
+					s.game.OnDisconnect(token)
 					delete(s.connections, id)
 				}
 			})
@@ -92,7 +99,7 @@ func (s *Server[R]) Connect(ctx context.Context, request R, conn Connection, han
 	return err
 }
 
-func (s *Server[R]) Open(ctx context.Context, tps int) error {
+func (s *Server[T]) Open(ctx context.Context, tps int) error {
 	// calculate the delay to achieve the correct tps
 	s.Lock()
 	defer s.Unlock()
@@ -102,6 +109,7 @@ func (s *Server[R]) Open(ctx context.Context, tps int) error {
 	}
 
 	s.open = true
+	s.ctx = ctx
 
 	target := time.Duration(int64(float64(time.Second) / float64(tps)))
 	ticker := time.NewTicker(target)
@@ -139,11 +147,11 @@ func (s *Server[R]) Open(ctx context.Context, tps int) error {
 		}
 	}()
 
-	s.game.OnStartup()
+	s.game.OnStartup(s)
 	return nil
 }
 
-func (s *Server[R]) Do(task func()) {
+func (s *Server[T]) Do(task func()) {
 	// measure the wait and execution time of tasks
 	var ready, start, done time.Time
 
@@ -158,4 +166,40 @@ func (s *Server[R]) Do(task func()) {
 	s.Unlock()
 
 	s.metrics.RecordTask(start, start.Sub(ready), done.Sub(start))
+}
+
+func (s *Server[T]) After(d time.Duration, task func()) {
+	go func() {
+		ctx, cancel := context.WithTimeout(s.ctx, d)
+		defer cancel()
+
+		<-ctx.Done()
+		if ctx.Err() == context.Canceled {
+			return
+		}
+
+		s.Do(task)
+	}()
+}
+
+func (s *Server[T]) Interval(d time.Duration, task func()) {
+	go func() {
+		ticker := time.NewTicker(d)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-s.ctx.Done():
+				return
+			case <-ticker.C:
+				s.Do(task)
+			}
+		}
+	}()
+}
+
+func (s *Server[T]) At(t time.Time, task func()) {
+	if now := time.Now(); now.Before(t) {
+		s.After(t.Sub(now), task)
+	}
 }
