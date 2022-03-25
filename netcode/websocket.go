@@ -1,36 +1,27 @@
 package netcode
 
 import (
-	"context"
 	"io"
 
 	"github.com/gorilla/websocket"
 )
 
+type Connection interface {
+	io.Writer
+	io.Closer
+	Receive() ([]byte, error)
+}
+
 type Websocket struct {
 	*websocket.Conn
 }
 
-func (ws *Websocket) Open(ctx context.Context, handler io.Writer, close Callback) error {
-	// create a context
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	go func() {
-		// websocket closes
-		<-ctx.Done()
-		ws.Conn.Close()
-		close()
-	}()
-
-	for {
-		// read messages
-		_, data, err := ws.Conn.ReadMessage()
-		if err != nil {
-			return err
-		}
-		handler.Write(data)
+func (ws *Websocket) Receive() ([]byte, error) {
+	_, data, err := ws.ReadMessage()
+	if err != nil {
+		return nil, err
 	}
+	return data, nil
 }
 
 func (ws *Websocket) Write(data []byte) (int, error) {

@@ -48,7 +48,7 @@ func (s *Server) GameEndpoint() http.HandlerFunc {
 		// add the user to the game
 		ws := &netcode.Websocket{Conn: conn}
 
-		if err = server.Connect(ctx, User{id: token}, ws, ws); err != nil {
+		if err = server.Connect(ctx, User{id: token}, ws); err != nil {
 			fmt.Println("connection error:", err)
 			ws.Close()
 		}

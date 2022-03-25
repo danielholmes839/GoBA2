@@ -31,13 +31,15 @@ func dial(ctx context.Context, n int) {
 	go func() {
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
+		counter := 0
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case t := <-ticker.C:
-				err := conn.WriteMessage(websocket.TextMessage, []byte(t.String()+"\n"))
+			case <-ticker.C:
+				err := conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("%d", counter)))
+				counter++
 				if err != nil {
 					log.Println("write:", err)
 					return

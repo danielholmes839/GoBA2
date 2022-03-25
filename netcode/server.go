@@ -3,7 +3,6 @@ package netcode
 import (
 	"context"
 	"errors"
-	"io"
 	"sync"
 	"time"
 )
@@ -25,6 +24,12 @@ func NewServer[T Token](game ServerHooks[T], connectionLimit int) *Server[T] {
 	}
 }
 
+type ServerConfig struct {
+	Metrics         ServerMetrics
+	ConnectionLimit int
+	SyncMessages    bool
+}
+
 type Server[T Token] struct {
 	sync.Mutex
 	game            ServerHooks[T]
@@ -40,43 +45,43 @@ func (s *Server[T]) WithMetrics(metrics ServerMetrics) *Server[T] {
 	return s
 }
 
-func (s *Server[T]) Connect(ctx context.Context, token T, conn Connection, handler io.Writer) error {
+func (s *Server[T]) Connect(ctx context.Context, token T, conn Connection) error {
 	var err error
+	s.Lock()
+	defer s.Unlock()
 
-	s.Do("connect", func() {
-		id := token.ID()
+	id := token.ID()
 
-		if !s.open {
-			err = errors.New("server closed")
-			return
+	if !s.open {
+		return errors.New("server closed")
+	}
+
+	if s.connectionLimit == len(s.connections) {
+		return errors.New("server full")
+	}
+
+	if _, found := s.connections[id]; found {
+		return errors.New("id taken")
+	}
+
+	if err = s.game.OnConnect(token, conn); err != nil {
+		return err
+	}
+
+	s.connections[id] = conn
+
+	go func() {
+		for {
+			data, err := conn.Receive()
+			if err != nil {
+				return
+			}
+
+			s.Lock()
+			s.game.OnMessage(id, data)
+			s.Unlock()
 		}
-
-		if s.connectionLimit == len(s.connections) {
-			err = errors.New("server full")
-			return
-		}
-
-		if _, found := s.connections[id]; found {
-			err = errors.New("id taken")
-			return
-		}
-
-		if err = s.game.OnConnect(token, conn); err != nil {
-			return
-		}
-
-		s.connections[id] = conn
-
-		go conn.Open(ctx, handler, func() {
-			// disconnect the client
-			s.Do("disconnect", func() {
-				if s.open {
-					s.game.OnDisconnect(token)
-					delete(s.connections, id)
-				}
-			})
-		})
-	})
+	}()
 
 	return err
 }
@@ -104,7 +109,7 @@ func (s *Server[T]) Open(ctx context.Context, tps int) error {
 			connection.Close()
 		}
 
-		s.game.OnShutdown()
+		s.game.OnClose()
 		s.open = false
 	}
 
@@ -124,16 +129,16 @@ func (s *Server[T]) Open(ctx context.Context, tps int) error {
 				s.game.Tick()
 				done = time.Now()
 				s.Unlock()
-				s.metrics.RecordTick(start, start.Sub(ready), done.Sub(ready))
+				s.metrics.RecordTick(start, ready.Sub(start), done.Sub(ready))
 			}
 		}
 	}()
 
-	s.game.OnStartup(&engine[T]{s})
+	s.game.OnOpen(ctx, s)
 	return nil
 }
 
-func (s *Server[T]) Do(task string, f func()) {
+func (s *Server[T]) Do(f func()) {
 	// measure the wait and execution time of tasks
 	var ready, start, done time.Time
 
@@ -147,5 +152,43 @@ func (s *Server[T]) Do(task string, f func()) {
 	done = time.Now()
 	s.Unlock()
 
-	s.metrics.RecordTask(task, start, start.Sub(ready), done.Sub(start))
+	s.metrics.RecordTask(start, start.Sub(ready), done.Sub(start))
+}
+
+func (s *Server[T]) After(d time.Duration, f func()) {
+	// execute function after a delay
+	go func() {
+		ctx, cancel := context.WithTimeout(s.ctx, d)
+		defer cancel()
+
+		<-ctx.Done()
+		if ctx.Err() == context.Canceled {
+			return
+		}
+		s.Do(f)
+	}()
+}
+
+func (s *Server[T]) At(t time.Time, f func()) {
+	// execute function at a specific time
+	if now := time.Now(); now.Before(t) {
+		s.After(t.Sub(now), f)
+	}
+}
+
+func (s *Server[T]) Interval(d time.Duration, f func()) {
+	// execute function on an interval
+	go func() {
+		ticker := time.NewTicker(d)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-s.ctx.Done():
+				return
+			case <-ticker.C:
+				s.Do(f)
+			}
+		}
+	}()
 }

@@ -14,8 +14,8 @@ type LocalServerMetrics struct {
 	ticksRecordedAt    time.Time
 }
 
-func (m *LocalServerMetrics) RecordTask(task string, start time.Time, wait, execution time.Duration) {
-	fmt.Printf("task: \"%s\" date: %s wait: %s execution: %s\n", task, start.UTC().Format("2006-01-02T15:04:05Z"), wait, execution)
+func (m *LocalServerMetrics) RecordTask(start time.Time, wait, execution time.Duration) {
+	fmt.Printf("task: %s wait: %s execution: %s\n", start.UTC().Format("2006-01-02T15:04:05Z"), wait, execution)
 }
 
 func (m *LocalServerMetrics) RecordTick(start time.Time, wait, execution time.Duration) {
@@ -36,7 +36,7 @@ func (m *LocalServerMetrics) RecordTick(start time.Time, wait, execution time.Du
 type EmptyMetrics struct {
 }
 
-func (m *EmptyMetrics) RecordTask(task string, start time.Time, wait, execution time.Duration) {
+func (m *EmptyMetrics) RecordTask(start time.Time, wait, execution time.Duration) {
 }
 
 func (m *EmptyMetrics) RecordTick(start time.Time, wait, execution time.Duration) {

@@ -1,6 +1,7 @@
 package game
 
 import (
+	"context"
 	"fmt"
 	"goba2/netcode"
 	"time"
@@ -39,9 +40,19 @@ func (g *Game) Tick() {
 	g.counter++
 }
 
+func (g *Game) OnMessage(user string, data []byte) {
+	fmt.Printf("user: %s message: %s\n", user, string(data))
+	g.users[user].conn.Write(data)
+
+}
+
 func (g *Game) OnConnect(user User, conn netcode.Connection) error {
 	// connection succeeded
 	fmt.Printf("game: %s new connection id: %s\n", g.name, user.id)
+	g.users[user.id] = &UserInfo{
+		user: user,
+		conn: conn,
+	}
 	return nil
 }
 
@@ -51,20 +62,20 @@ func (g *Game) OnDisconnect(user User) {
 	delete(g.users, user.id)
 }
 
-func (g *Game) OnShutdown() {
+func (g *Game) OnClose() {
 	fmt.Println("game: shutdown!")
 }
 
-func (g *Game) OnStartup(engine netcode.Engine) {
-	engine.After("example 1", time.Second*3, func() {
+func (g *Game) OnOpen(ctx context.Context, engine netcode.Engine) {
+	engine.After(time.Second*3, func() {
 		fmt.Println("3 second after (after)")
 	})
 
-	engine.At("example 2", time.Now().Add(time.Second*3), func() {
+	engine.At(time.Now().Add(time.Second*3), func() {
 		fmt.Println("3 second after (at)")
 	})
 
-	engine.Interval("example 3", time.Second*10, func() {
+	engine.Interval(time.Second*10, func() {
 		fmt.Println("10 second interval")
 	})
 
