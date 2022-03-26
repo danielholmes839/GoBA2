@@ -10,11 +10,18 @@ type ServerMetrics interface {
 	RecordTick(start time.Time, wait, execution time.Duration)
 }
 
-type ServerHooks[T Token] interface {
+type Identity interface {
+	ID() string
+}
+
+/* ServerHooks interface
+implemented by games
+*/
+type ServerHooks[I Identity] interface {
 	Tick()
-	OnMessage(user string, data []byte)
-	OnConnect(token T, conn Connection) error
-	OnDisconnect(token T)
+	OnMessage(id string, data []byte)
+	OnConnect(identity I, conn Connection) error
+	OnDisconnect(identity I)
 	OnOpen(ctx context.Context, engine Engine)
 	OnClose()
 }
@@ -23,8 +30,4 @@ type Engine interface {
 	After(d time.Duration, f func())
 	At(t time.Time, f func())
 	Interval(t time.Duration, f func())
-}
-
-type Token interface {
-	ID() string
 }
