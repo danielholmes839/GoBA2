@@ -17,7 +17,7 @@ type OAuth2EndpointsConfig struct {
 }
 
 func OAuth2Endpoints(provider *oauth2.Config, config *OAuth2EndpointsConfig) (redirect, callback http.HandlerFunc) {
-	state := "random" // TODO
+	state := "optional" // TODO
 
 	redirect = func(w http.ResponseWriter, r *http.Request) {
 		// redirect to the OAuth2 provider endpoint
@@ -33,7 +33,8 @@ func OAuth2Endpoints(provider *oauth2.Config, config *OAuth2EndpointsConfig) (re
 		}
 
 		// get an http client using the OAuth2 token
-		providerToken, _ := provider.Exchange(context.Background(), r.FormValue("code"))
+		code := r.URL.Query().Get("code")
+		providerToken, _ := provider.Exchange(context.Background(), code)
 		client := provider.Client(context.Background(), providerToken)
 
 		// use the client to get an identity

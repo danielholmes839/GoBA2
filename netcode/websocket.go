@@ -26,7 +26,7 @@ func (ws *Websocket) Receive() ([]byte, error) {
 
 func (ws *Websocket) Write(data []byte) (int, error) {
 	// write to the connection implements
-	err := ws.Conn.WriteMessage(websocket.BinaryMessage, data)
+	err := ws.WriteMessage(websocket.TextMessage, data)
 	if err != nil {
 		return 0, err
 	}

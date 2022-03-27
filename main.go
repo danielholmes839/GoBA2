@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"goba2/backend/auth"
 	"goba2/game"
 	"net/http"
@@ -16,8 +17,9 @@ func main() {
 	http.HandleFunc("/game/connect", game.GameEndpoint())
 
 	jwt := &auth.JWTManager{
-		Key: []byte("secret"),
-		TTL: time.Hour * 24 * 7,
+		Key:    []byte("secret"),
+		TTL:    time.Hour * 24 * 7,
+		Issuer: "some-issuer-name",
 	}
 
 	discordRedirect, discordCallback := auth.OAuth2Endpoints(
@@ -31,7 +33,7 @@ func main() {
 		&auth.OAuth2EndpointsConfig{
 			IdentityFunc:       auth.DiscordIdentity,
 			TokenProvider:      jwt,
-			AuthorizedEndpoint: "/me",
+			AuthorizedEndpoint: "http://localhost:3001",
 		},
 	)
 
@@ -39,40 +41,35 @@ func main() {
 	http.HandleFunc("/auth/discord/callback", discordCallback)
 
 	http.HandleFunc("/me", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
 		cookie, err := r.Cookie("token")
+
+		fmt.Println(1, err)
 
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte("unauthorized: \"token\" cookie missing"))
+			w.Write([]byte("unauthorized: token missing"))
 			return
 		}
+
+		fmt.Println(2)
 
 		identity, err := jwt.Verify(cookie.Value)
 
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte("unauthorized: cookie invalid"))
+			w.Write([]byte("unauthorized: token invalid"))
 			return
 		}
 
+		fmt.Println(3)
+
 		data, _ := json.Marshal(identity)
+		fmt.Println(string(data))
+
+		w.Header().Add("Access-Control-Allow-Credentials", "true")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(data))
-	})
-
-	http.HandleFunc("/auth/check", func(w http.ResponseWriter, r *http.Request) {
-		token := r.URL.Query().Get("token")
-		identity, err := jwt.Verify(token)
-
-		if err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte("unauthorized"))
-			return
-		}
-
-		data, _ := json.Marshal(identity)
-		w.WriteHeader(http.StatusOK)
-		w.Write(data)
 	})
 
 	http.ListenAndServe("localhost:3000", nil)

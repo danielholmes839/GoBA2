@@ -8,33 +8,35 @@ import (
 )
 
 type Config struct {
-	Metrics         ServerMetrics
-	ConnectionLimit int
+	Metrics             ServerMetrics
+	ConnectionLimit     int
+	SynchronousMessages bool
 }
 
 type Server[I Identity] struct {
 	sync.Mutex
-	game            ServerHooks[I]
-	metrics         ServerMetrics
-	connectionLimit int
-	connections     map[string]Connection
-	open            bool
-	ctx             context.Context
+	game                ServerHooks[I]
+	metrics             ServerMetrics
+	synchronousMessages bool
+	connectionLimit     int
+	connections         map[string]Connection
+	open                bool
+	ctx                 context.Context
 }
 
 func NewServer[I Identity](game ServerHooks[I], conf *Config) *Server[I] {
 	return &Server[I]{
-		Mutex:           sync.Mutex{},
-		game:            game,
-		metrics:         conf.Metrics,
-		connectionLimit: conf.ConnectionLimit,
-		connections:     make(map[string]Connection),
-		open:            false,
+		Mutex:               sync.Mutex{},
+		game:                game,
+		metrics:             conf.Metrics,
+		synchronousMessages: conf.SynchronousMessages,
+		connectionLimit:     conf.ConnectionLimit,
+		connections:         make(map[string]Connection),
+		open:                false,
 	}
 }
 
 func (s *Server[I]) Connect(ctx context.Context, identity I, conn Connection) error {
-	var err error
 	s.Lock()
 	defer s.Unlock()
 
@@ -52,26 +54,28 @@ func (s *Server[I]) Connect(ctx context.Context, identity I, conn Connection) er
 		return errors.New("already connected")
 	}
 
-	if err = s.game.OnConnect(identity, conn); err != nil {
+	if err := s.game.OnConnect(identity, conn); err != nil {
 		return err
 	}
 
 	s.connections[id] = conn
 
 	go func() {
-		for {
-			data, err := conn.Receive()
-			if err != nil {
-				return
-			}
+		defer s.Do(func() {
+			conn.Close()
+			delete(s.connections, id)
+			s.game.OnDisconnect(identity)
+		})
 
-			s.Lock()
-			s.game.OnMessage(id, data)
-			s.Unlock()
+		// start processing messages
+		if s.synchronousMessages {
+			s.processMessages(id, conn, s.processMessageSynchronously)
+		} else {
+			s.processMessages(id, conn, s.processMessageAsynchronously)
 		}
 	}()
 
-	return err
+	return nil
 }
 
 func (s *Server[I]) Open(ctx context.Context, tps int) error {
@@ -130,15 +134,12 @@ func (s *Server[I]) Do(f func()) {
 	// measure the wait and execution time of tasks
 	var ready, start, done time.Time
 
-	// measure when the waiting started
-	ready = time.Now()
-	s.Lock()
-
-	// measure when the task started
-	start = time.Now()
-	f()
-	done = time.Now()
-	s.Unlock()
+	ready = time.Now() // measure when the waiting started
+	s.Lock()           // acquire the lock
+	start = time.Now() // measure when the task started
+	f()                // execute the function
+	done = time.Now()  // measure when the task ended
+	s.Unlock()         // release the lock
 
 	s.metrics.RecordTask(start, start.Sub(ready), done.Sub(start))
 }
@@ -179,4 +180,31 @@ func (s *Server[I]) Interval(d time.Duration, f func()) {
 			}
 		}
 	}()
+}
+
+func (s *Server[I]) processMessages(id string, conn Connection, process func(id string, data []byte)) {
+	for {
+		data, err := conn.Receive()
+		if err != nil {
+			return
+		}
+		process(id, data)
+	}
+}
+
+/* processMessagesAsynchronously
+call game.OnMessage without acquiring the lock. better for real-time games
+better performance since messages can be deserialized without acquiring the lock
+*/
+func (s *Server[I]) processMessageAsynchronously(id string, data []byte) {
+	s.game.OnMessage(id, data)
+}
+
+/* processMessagesSynchronously
+the lock must be acquired before calling game.OnMessage(). better for games that process a lower number of events
+*/
+func (s *Server[I]) processMessageSynchronously(id string, data []byte) {
+	s.Lock()
+	s.game.OnMessage(id, data)
+	s.Unlock()
 }

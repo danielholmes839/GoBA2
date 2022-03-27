@@ -2,6 +2,7 @@ package game
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"goba2/netcode"
 	"net/http"
@@ -78,21 +79,24 @@ func (g *Game) OnOpen(ctx context.Context, engine netcode.Engine) {
 		fmt.Println("3 second after (at)")
 	})
 
-	engine.Interval(time.Second*10, func() {
-		fmt.Println("10 second interval")
+	counter := 0
+	type interval struct {
+		Counter int `json:"counter"`
+	}
+
+	engine.Interval(time.Second*1, func() {
+		data, _ := json.Marshal(interval{Counter: counter})
+		for _, connection := range g.users {
+			connection.conn.Write(data)
+		}
+		counter++
+		fmt.Println("1 second interval")
 	})
 
 	fmt.Println("game: startup!")
 }
 
 func GameEndpoint() http.HandlerFunc {
-
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		time.Sleep(time.Second * 30)
-		cancel()
-	}()
-
 	mygame := NewGame("my-game")
 
 	server := netcode.NewServer[User](
@@ -102,6 +106,8 @@ func GameEndpoint() http.HandlerFunc {
 			ConnectionLimit: 100,
 		},
 	)
+
+	ctx := context.Background()
 
 	if err := server.Open(ctx, 64); err != nil {
 		panic(err)
@@ -115,7 +121,7 @@ func GameEndpoint() http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		// upgrade the websocket connection
-		token := r.URL.Query().Get("token")
+		token := "test"
 		conn, err := upgrader.Upgrade(w, r, nil)
 
 		if err != nil {

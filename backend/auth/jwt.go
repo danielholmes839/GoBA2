@@ -8,8 +8,9 @@ import (
 )
 
 type JWTManager struct {
-	Key []byte
-	TTL time.Duration
+	Key    []byte
+	TTL    time.Duration
+	Issuer string
 }
 
 func (mgr *JWTManager) Verify(token string) (*Identity, error) {
@@ -22,7 +23,7 @@ func (mgr *JWTManager) Verify(token string) (*Identity, error) {
 		return nil, err
 	}
 
-	if data.Issuer != "some-issuer" {
+	if data.Issuer != mgr.Issuer {
 		return nil, errors.New("invalid issuer")
 	}
 
@@ -40,7 +41,7 @@ func (mgr *JWTManager) New(identity *Identity) string {
 		StandardClaims: &jwt.StandardClaims{
 			ExpiresAt: now.Add(mgr.TTL).Unix(),
 			IssuedAt:  now.Unix(),
-			Issuer:    "some-issuer",
+			Issuer:    mgr.Issuer,
 		},
 		Identity: identity,
 	}
