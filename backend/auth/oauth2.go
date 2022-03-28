@@ -10,14 +10,21 @@ import (
 
 type URLFunc func(token string) url.URL
 
-type OAuth2EndpointsConfig struct {
+type OAuth2EndpointConfig struct {
 	IdentityFunc
 	TokenProvider
 	AuthorizedEndpoint string
 }
 
-func OAuth2Endpoints(provider *oauth2.Config, config *OAuth2EndpointsConfig) (redirect, callback http.HandlerFunc) {
+type OAuth2Config struct {
+	Provider *oauth2.Config
+	Endpoint *OAuth2EndpointConfig
+}
+
+func OAuth2Endpoints(conf *OAuth2Config) (redirect, callback http.HandlerFunc) {
 	state := "optional" // TODO
+	provider := conf.Provider
+	endpoint := conf.Endpoint
 
 	redirect = func(w http.ResponseWriter, r *http.Request) {
 		// redirect to the OAuth2 provider endpoint
@@ -38,7 +45,7 @@ func OAuth2Endpoints(provider *oauth2.Config, config *OAuth2EndpointsConfig) (re
 		client := provider.Client(context.Background(), providerToken)
 
 		// use the client to get an identity
-		identity, err := config.IdentityFunc(client)
+		identity, err := endpoint.IdentityFunc(client)
 
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -46,7 +53,7 @@ func OAuth2Endpoints(provider *oauth2.Config, config *OAuth2EndpointsConfig) (re
 			return
 		}
 
-		token := config.TokenProvider.New(identity)
+		token := endpoint.TokenProvider.New(identity)
 
 		http.SetCookie(w, &http.Cookie{
 			Name:  "token",
@@ -54,7 +61,7 @@ func OAuth2Endpoints(provider *oauth2.Config, config *OAuth2EndpointsConfig) (re
 			Path:  "/",
 		})
 
-		http.Redirect(w, r, config.AuthorizedEndpoint, http.StatusSeeOther)
+		http.Redirect(w, r, endpoint.AuthorizedEndpoint, http.StatusSeeOther)
 	}
 
 	return redirect, callback

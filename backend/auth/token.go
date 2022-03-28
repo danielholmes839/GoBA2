@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/golang-jwt/jwt"
@@ -27,4 +28,27 @@ type Identity struct {
 	Color    string `json:"color"`     // #ffffff
 }
 
+func (identity *Identity) ID() string {
+	return identity.UserID
+}
+
+/* IdentityFunc requests the identity information from the oauth provider using an authenticated http client */
 type IdentityFunc func(client *http.Client) (*Identity, error)
+
+func GetIdentity(verifier TokenVerifier, r *http.Request) (*Identity, error) {
+	cookie, err := r.Cookie("token")
+
+	if err != nil {
+		// the token does exist
+		return nil, errors.New("token does not exist")
+	}
+
+	identity, err := verifier.Verify(cookie.Value)
+
+	if err != nil {
+		// the token could not be verifier
+		return nil, errors.New("token not valid")
+	}
+
+	return identity, err
+}

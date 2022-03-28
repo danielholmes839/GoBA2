@@ -15,7 +15,7 @@ function Profile() {
   const [identity, setIdentity] = useState(null)
 
   useEffect(() => {
-    fetch("http://localhost:3000/me", {
+    fetch("http://localhost:3000/@me", {
       method: "GET",
       credentials: "include",
     }).then(response => response.json()).then(data => {
@@ -48,7 +48,7 @@ function App() {
     ctx.fillStyle = '#ff7700'
     ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height)
 
-    const ws = new WebSocket("ws://localhost:3000/game/connect")
+    const ws = new WebSocket("ws://localhost:3000/connect")
 
     ws.addEventListener('open', (message) => {
       console.log("opened websocket", message);

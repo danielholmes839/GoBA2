@@ -126,8 +126,12 @@ func (s *Server[I]) Open(ctx context.Context, tps int) error {
 		}
 	}()
 
-	s.game.OnOpen(ctx, s)
+	s.game.OnOpen(s)
 	return nil
+}
+
+func (s *Server[I]) Context() context.Context {
+	return s.ctx
 }
 
 func (s *Server[I]) Do(f func()) {

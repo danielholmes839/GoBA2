@@ -1,27 +1,24 @@
 package game
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"goba2/netcode"
-	"net/http"
+	"io"
 	"time"
-
-	"github.com/gorilla/websocket"
 )
 
 type User struct {
-	id string
+	Id string
 }
 
 func (u User) ID() string {
-	return u.id
+	return u.Id
 }
 
 type UserInfo struct {
 	user User
-	conn netcode.Connection
+	conn io.Writer
 }
 
 type Game struct {
@@ -50,10 +47,10 @@ func (g *Game) OnMessage(user string, data []byte) {
 
 }
 
-func (g *Game) OnConnect(user User, conn netcode.Connection) error {
+func (g *Game) OnConnect(user User, conn io.Writer) error {
 	// connection succeeded
-	fmt.Printf("game: %s new connection id: %s\n", g.name, user.id)
-	g.users[user.id] = &UserInfo{
+	fmt.Printf("game: %s new connection id: %s\n", g.name, user.Id)
+	g.users[user.Id] = &UserInfo{
 		user: user,
 		conn: conn,
 	}
@@ -62,15 +59,15 @@ func (g *Game) OnConnect(user User, conn netcode.Connection) error {
 
 func (g *Game) OnDisconnect(user User) {
 	// connection disconnected
-	fmt.Printf("game: %s closed connection id: %s\n", g.name, user.id)
-	delete(g.users, user.id)
+	fmt.Printf("game: %s closed connection id: %s\n", g.name, user.Id)
+	delete(g.users, user.Id)
 }
 
 func (g *Game) OnClose() {
 	fmt.Println("game: shutdown!")
 }
 
-func (g *Game) OnOpen(ctx context.Context, engine netcode.Engine) {
+func (g *Game) OnOpen(engine netcode.Engine) {
 	engine.After(time.Second*3, func() {
 		fmt.Println("3 second after (after)")
 	})
@@ -87,6 +84,7 @@ func (g *Game) OnOpen(ctx context.Context, engine netcode.Engine) {
 	engine.Interval(time.Second*1, func() {
 		data, _ := json.Marshal(interval{Counter: counter})
 		for _, connection := range g.users {
+			fmt.Println("writing")
 			connection.conn.Write(data)
 		}
 		counter++
@@ -94,47 +92,4 @@ func (g *Game) OnOpen(ctx context.Context, engine netcode.Engine) {
 	})
 
 	fmt.Println("game: startup!")
-}
-
-func GameEndpoint() http.HandlerFunc {
-	mygame := NewGame("my-game")
-
-	server := netcode.NewServer[User](
-		mygame,
-		&netcode.Config{
-			Metrics:         &netcode.LocalServerMetrics{},
-			ConnectionLimit: 100,
-		},
-	)
-
-	ctx := context.Background()
-
-	if err := server.Open(ctx, 64); err != nil {
-		panic(err)
-	}
-
-	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			return true
-		},
-	}
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		// upgrade the websocket connection
-		token := "test"
-		conn, err := upgrader.Upgrade(w, r, nil)
-
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		// add the user to the game
-		ws := &netcode.Websocket{Conn: conn}
-
-		if err = server.Connect(ctx, User{id: token}, ws); err != nil {
-			fmt.Println("connection error:", err)
-			ws.Close()
-		}
-	}
 }

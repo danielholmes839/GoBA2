@@ -2,8 +2,15 @@ package netcode
 
 import (
 	"context"
+	"io"
 	"time"
 )
+
+type Connection interface {
+	io.Writer
+	io.Closer
+	Receive() ([]byte, error)
+}
 
 type ServerMetrics interface {
 	RecordTask(start time.Time, wait, execution time.Duration)
@@ -20,9 +27,9 @@ implemented by games
 type ServerHooks[I Identity] interface {
 	Tick()
 	OnMessage(id string, data []byte)
-	OnConnect(identity I, conn Connection) error
+	OnConnect(identity I, connection io.Writer) error
 	OnDisconnect(identity I)
-	OnOpen(ctx context.Context, engine Engine)
+	OnOpen(engine Engine)
 	OnClose()
 }
 
@@ -30,4 +37,5 @@ type Engine interface {
 	After(d time.Duration, f func())
 	At(t time.Time, f func())
 	Interval(t time.Duration, f func())
+	Context() context.Context
 }

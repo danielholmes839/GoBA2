@@ -1,16 +1,8 @@
 package netcode
 
 import (
-	"io"
-
 	"github.com/gorilla/websocket"
 )
-
-type Connection interface {
-	io.Writer
-	io.Closer
-	Receive() ([]byte, error)
-}
 
 type Websocket struct {
 	*websocket.Conn
@@ -26,8 +18,7 @@ func (ws *Websocket) Receive() ([]byte, error) {
 
 func (ws *Websocket) Write(data []byte) (int, error) {
 	// write to the connection implements
-	err := ws.WriteMessage(websocket.TextMessage, data)
-	if err != nil {
+	if err := ws.WriteMessage(websocket.TextMessage, data); err != nil {
 		return 0, err
 	}
 	return len(data), nil
