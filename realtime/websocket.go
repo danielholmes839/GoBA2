@@ -1,8 +1,10 @@
-package netcode
+package realtime
 
 import (
 	"github.com/gorilla/websocket"
 )
+
+const ServerShuttingDown = 4000
 
 type Websocket struct {
 	*websocket.Conn

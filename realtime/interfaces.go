@@ -1,4 +1,4 @@
-package netcode
+package realtime
 
 import (
 	"context"
@@ -29,13 +29,14 @@ type ServerHooks[I Identity] interface {
 	OnMessage(id string, data []byte)
 	OnConnect(identity I, connection io.Writer) error
 	OnDisconnect(identity I)
-	OnOpen(engine Engine)
+	OnOpen(scheduler Scheduler)
 	OnClose()
 }
 
-type Engine interface {
+type Scheduler interface {
 	After(d time.Duration, f func())
 	At(t time.Time, f func())
 	Interval(t time.Duration, f func())
 	Context() context.Context
+	Cancel()
 }

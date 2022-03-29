@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"goba2/backend/auth"
 	"goba2/game"
-	"goba2/netcode"
+	"goba2/realtime"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -57,10 +57,10 @@ func (api *API) MeEndpoint() http.HandlerFunc {
 func (api *API) GameEndpoint() http.HandlerFunc {
 	mygame := game.NewGame("my-game")
 
-	server := netcode.NewServer[game.User](
+	server := realtime.NewServer[game.User](
 		mygame,
-		&netcode.Config{
-			Metrics:             &netcode.LocalServerMetrics{},
+		&realtime.Config{
+			Metrics:             &realtime.LocalServerMetrics{},
 			ConnectionLimit:     100,
 			SynchronousMessages: true,
 		},
@@ -91,7 +91,7 @@ func (api *API) GameEndpoint() http.HandlerFunc {
 		}
 
 		// add the user to the game
-		ws := &netcode.Websocket{Conn: conn}
+		ws := &realtime.Websocket{Conn: conn}
 
 		if err = server.Connect(ctx, game.User{Id: identity.ID()}, ws); err != nil {
 			fmt.Println("connection error:", err)

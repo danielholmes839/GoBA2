@@ -1,4 +1,4 @@
-package netcode
+package realtime
 
 import (
 	"context"
@@ -22,6 +22,7 @@ type Server[I Identity] struct {
 	connections         map[string]Connection
 	open                bool
 	ctx                 context.Context
+	cancel              context.CancelFunc
 }
 
 func NewServer[I Identity](game ServerHooks[I], conf *Config) *Server[I] {
@@ -79,24 +80,24 @@ func (s *Server[I]) Connect(ctx context.Context, identity I, conn Connection) er
 }
 
 func (s *Server[I]) Open(ctx context.Context, tps int) error {
-	// calculate the delay to achieve the correct tps
 	s.Lock()
 	defer s.Unlock()
 
 	if s.open {
 		return errors.New("server already open")
 	}
-
 	s.open = true
-	s.ctx = ctx
 
+	ctx, cancel := context.WithCancel(ctx)
+	s.ctx = ctx
+	s.cancel = cancel
+
+	// calculate the delay to achieve the correct tps
 	target := time.Duration(int64(float64(time.Second) / float64(tps)))
 	ticker := time.NewTicker(target)
 
-	shutdown := func() {
-		s.Lock()
-		defer s.Unlock()
-
+	// shutdown function
+	close := func() {
 		for _, connection := range s.connections {
 			connection.Close()
 		}
@@ -105,23 +106,26 @@ func (s *Server[I]) Open(ctx context.Context, tps int) error {
 		s.open = false
 	}
 
+	// tick function
+	tick := func() {
+		start := time.Now()
+		s.Lock()
+		ready := time.Now()
+		s.game.Tick()
+		done := time.Now()
+		s.Unlock()
+		s.metrics.RecordTick(start, ready.Sub(start), done.Sub(ready))
+	}
+
 	go func() {
-		var ready, start, done time.Time
 		for {
 			select {
 			case <-ctx.Done():
-				shutdown()
+				s.Do(close)
 				return
 
 			case <-ticker.C:
-				// execute ticks
-				start = time.Now()
-				s.Lock()
-				ready = time.Now()
-				s.game.Tick()
-				done = time.Now()
-				s.Unlock()
-				s.metrics.RecordTick(start, ready.Sub(start), done.Sub(ready))
+				tick()
 			}
 		}
 	}()
@@ -132,6 +136,12 @@ func (s *Server[I]) Open(ctx context.Context, tps int) error {
 
 func (s *Server[I]) Context() context.Context {
 	return s.ctx
+}
+
+func (s *Server[I]) Cancel() {
+	s.Lock()
+	defer s.Unlock()
+	s.cancel()
 }
 
 func (s *Server[I]) Do(f func()) {

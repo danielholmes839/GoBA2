@@ -3,7 +3,7 @@ package game
 import (
 	"encoding/json"
 	"fmt"
-	"goba2/netcode"
+	"goba2/realtime"
 	"io"
 	"time"
 )
@@ -67,7 +67,7 @@ func (g *Game) OnClose() {
 	fmt.Println("game: shutdown!")
 }
 
-func (g *Game) OnOpen(engine netcode.Engine) {
+func (g *Game) OnOpen(engine realtime.Scheduler) {
 	engine.After(time.Second*3, func() {
 		fmt.Println("3 second after (after)")
 	})
@@ -81,10 +81,9 @@ func (g *Game) OnOpen(engine netcode.Engine) {
 		Counter int `json:"counter"`
 	}
 
-	engine.Interval(time.Second*1, func() {
+	engine.Interval(time.Millisecond*1000, func() {
 		data, _ := json.Marshal(interval{Counter: counter})
 		for _, connection := range g.users {
-			fmt.Println("writing")
 			connection.conn.Write(data)
 		}
 		counter++
