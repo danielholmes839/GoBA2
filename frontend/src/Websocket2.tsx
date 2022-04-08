@@ -17,43 +17,45 @@ export type SessionDisconnectHandler = (ev: Event) => any;
 export type SessionHooks = {
   connect: (url: string) => void,
   disconnect: () => void,
-  write: <T extends Contextable>(args: T) => void,
+  send: <T extends Contextable>(args: T) => void,
 }
 
-export function useSession(
-  onOpen: SessionConnectHandler,
-  onMessage: SessionMessageHanlder,
-  onClose: SessionDisconnectHandler
-): SessionHooks {
+export type SessionHandlers = {
+  open: SessionConnectHandler,
+  message: SessionMessageHanlder,
+  close: SessionDisconnectHandler
+}
+
+export function useSession({ open, close, message }: SessionHandlers): SessionHooks {
   const [session, setSession] = useState(null as unknown as WebSocket);
 
   const updateOpenHandler = () => {
     if (!session) return;
-    session.addEventListener('open', onOpen);
+    session.addEventListener('open', open);
     return () => {
-      session.removeEventListener('open', onOpen);
+      session.removeEventListener('open', open);
     };
   };
 
   const updateMessageHandler = () => {
     if (!session) return;
-    session.addEventListener('message', onMessage);
+    session.addEventListener('message', message);
     return () => {
-      session.removeEventListener('message', onMessage);
+      session.removeEventListener('message', message);
     };
   };
 
   const updateCloseHandler = () => {
     if (!session) return;
-    session.addEventListener('close', onClose);
+    session.addEventListener('close', close);
     return () => {
-      session.removeEventListener('close', onClose);
+      session.removeEventListener('close', close);
     };
   };
 
-  useEffect(updateOpenHandler, [session, onOpen]);
-  useEffect(updateMessageHandler, [session, onMessage]);
-  useEffect(updateCloseHandler, [session, onClose]);
+  useEffect(updateOpenHandler, [session, open]);
+  useEffect(updateMessageHandler, [session, message]);
+  useEffect(updateCloseHandler, [session, close]);
 
   const connect = useCallback(
     (url: string) => {
@@ -63,17 +65,17 @@ export function useSession(
     []
   );
 
-  const sendMessage = <T extends Contextable>(args: T) => {
+  const send = <T extends Contextable>(args: T) => {
     session.send(JSON.stringify(args));
   };
 
-  const close = useCallback(() => {
+  const disconnect = useCallback(() => {
     if (session.readyState === session.OPEN) session.close(1000);
   }, [session]);
 
   return {
     connect: connect,
-    disconnect: close,
-    write: sendMessage
+    disconnect: disconnect,
+    send: send
   };
 }
