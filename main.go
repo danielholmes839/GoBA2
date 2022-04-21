@@ -17,7 +17,7 @@ func main() {
 		Issuer: "some-issuer-name",
 	}
 
-	api := backend.NewAPI(&backend.Config{
+	server := backend.NewServer(&backend.Config{
 		TokenVerifier: jwt,
 		Discord: &auth.OAuth2Config{
 			Provider: &oauth2.Config{
@@ -35,6 +35,6 @@ func main() {
 		},
 	})
 
-	router := api.Routes()
+	router := server.Routes()
 	http.ListenAndServe("localhost:3000", router)
 }

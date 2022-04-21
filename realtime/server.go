@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+var ErrServerClosed = errors.New("server closed")
+var ErrServerFull = errors.New("server full")
+var ErrAlreadyConnected = errors.New("already connected")
+
 type Config struct {
 	Metrics             ServerMetrics
 	ConnectionLimit     int
@@ -22,7 +26,6 @@ type Server[I Identity] struct {
 	connections         map[string]Connection
 	open                bool
 	ctx                 context.Context
-	cancel              context.CancelFunc
 }
 
 func NewServer[I Identity](game ServerHooks[I], conf *Config) *Server[I] {
@@ -37,22 +40,22 @@ func NewServer[I Identity](game ServerHooks[I], conf *Config) *Server[I] {
 	}
 }
 
-func (s *Server[I]) Connect(ctx context.Context, identity I, conn Connection) error {
+func (s *Server[I]) Connect(identity I, conn Connection) error {
 	s.Lock()
 	defer s.Unlock()
 
 	id := identity.ID()
 
 	if !s.open {
-		return errors.New("server closed")
+		return ErrServerClosed
 	}
 
 	if s.connectionLimit == len(s.connections) {
-		return errors.New("server full")
+		return ErrServerFull
 	}
 
 	if _, exists := s.connections[id]; exists {
-		return errors.New("already connected")
+		return ErrAlreadyConnected
 	}
 
 	if err := s.game.OnConnect(identity, conn); err != nil {
@@ -61,87 +64,55 @@ func (s *Server[I]) Connect(ctx context.Context, identity I, conn Connection) er
 
 	s.connections[id] = conn
 
-	go func() {
-		defer s.Do(func() {
-			conn.Close()
-			delete(s.connections, id)
-			s.game.OnDisconnect(identity)
-		})
+	// ctx to close the connection
+	ctx, disconnect := context.WithCancel(s.ctx)
 
+	go func() {
+		<-ctx.Done()
+		s.Lock()
+		defer s.Unlock()
+		conn.Close()
+		delete(s.connections, id)
+		s.game.OnDisconnect(identity)
+	}()
+
+	go func() {
+		defer disconnect()
 		// start processing messages
 		if s.synchronousMessages {
-			s.processMessages(id, conn, s.processMessageSynchronously)
+			s.processMessages(id, conn, s.processMessagesSynchronously)
 		} else {
-			s.processMessages(id, conn, s.processMessageAsynchronously)
+			s.processMessages(id, conn, s.processMessagesAsynchronously)
 		}
 	}()
 
 	return nil
 }
 
-func (s *Server[I]) Open(ctx context.Context, tps int) error {
+func (s *Server[I]) Open(ctx context.Context) error {
 	s.Lock()
 	defer s.Unlock()
 
 	if s.open {
 		return errors.New("server already open")
 	}
+
 	s.open = true
-
-	ctx, cancel := context.WithCancel(ctx)
 	s.ctx = ctx
-	s.cancel = cancel
-
-	// calculate the delay to achieve the correct tps
-	target := time.Duration(int64(float64(time.Second) / float64(tps)))
-	ticker := time.NewTicker(target)
 
 	// shutdown function
-	close := func() {
-		for _, connection := range s.connections {
-			connection.Close()
-		}
+	go func() {
+		<-ctx.Done()
+		s.Lock()
+		defer s.Unlock()
 
+		// close game
 		s.game.OnClose()
 		s.open = false
-	}
-
-	// tick function
-	tick := func() {
-		start := time.Now()
-		s.Lock()
-		ready := time.Now()
-		s.game.Tick()
-		done := time.Now()
-		s.Unlock()
-		s.metrics.RecordTick(start, ready.Sub(start), done.Sub(ready))
-	}
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				s.Do(close)
-				return
-
-			case <-ticker.C:
-				tick()
-			}
-		}
 	}()
 
 	s.game.OnOpen(s)
 	return nil
-}
-
-func (s *Server[I]) Context() context.Context {
-	return s.ctx
-}
-
-func (s *Server[I]) Cancel() {
-	s.Lock()
-	defer s.Unlock()
-	s.cancel()
 }
 
 func (s *Server[I]) Do(f func()) {
@@ -161,14 +132,12 @@ func (s *Server[I]) Do(f func()) {
 func (s *Server[I]) After(d time.Duration, f func()) {
 	// execute function after a delay
 	go func() {
-		ctx, cancel := context.WithTimeout(s.ctx, d)
-		defer cancel()
-
-		<-ctx.Done()
-		if ctx.Err() == context.Canceled {
+		select {
+		case <-s.ctx.Done():
 			return
+		case <-time.After(d):
+			s.Do(f)
 		}
-		s.Do(f)
 	}()
 }
 
@@ -210,14 +179,14 @@ func (s *Server[I]) processMessages(id string, conn Connection, process func(id 
 call game.OnMessage without acquiring the lock. better for real-time games
 better performance since messages can be deserialized without acquiring the lock
 */
-func (s *Server[I]) processMessageAsynchronously(id string, data []byte) {
+func (s *Server[I]) processMessagesAsynchronously(id string, data []byte) {
 	s.game.OnMessage(id, data)
 }
 
 /* processMessagesSynchronously
 the lock must be acquired before calling game.OnMessage(). better for games that process a lower number of events
 */
-func (s *Server[I]) processMessageSynchronously(id string, data []byte) {
+func (s *Server[I]) processMessagesSynchronously(id string, data []byte) {
 	s.Lock()
 	s.game.OnMessage(id, data)
 	s.Unlock()

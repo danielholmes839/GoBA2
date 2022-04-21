@@ -47,7 +47,7 @@ func (g *Game) OnMessage(user string, data []byte) {
 
 }
 
-func (g *Game) OnConnect(user User, conn io.Writer) error {
+func (g *Game) OnConnect(user User, conn realtime.Connection) error {
 	// connection succeeded
 	fmt.Printf("game: %s new connection id: %s\n", g.name, user.Id)
 	g.users[user.Id] = &UserInfo{

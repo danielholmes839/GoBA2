@@ -2,7 +2,6 @@ package backend
 
 import (
 	"context"
-	"fmt"
 	"goba2/backend/auth"
 	"goba2/game"
 	"goba2/realtime"
@@ -18,49 +17,49 @@ type Config struct {
 	Discord       *auth.OAuth2Config
 }
 
-type API struct {
+type Server struct {
 	Conf *Config
 }
 
-func NewAPI(conf *Config) *API {
-	return &API{
+func NewServer(conf *Config) *Server {
+	return &Server{
 		Conf: conf,
 	}
 }
 
-func (api *API) Routes() chi.Router {
+func (s *Server) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(CORSMiddleware)
 
-	discordRedirect, discordCallback := auth.OAuth2Endpoints(api.Conf.Discord)
+	discordRedirect, discordCallback := auth.OAuth2Endpoints(s.Conf.Discord)
 
 	r.Get("/auth/discord", discordRedirect)
 	r.Get("/auth/discord/callback", discordCallback)
-	r.Get("/connect", api.GameEndpoint())
+	r.Get("/connect", s.GameEndpoint())
 
 	r.Route("/", func(r chi.Router) {
-		r.Use(AuthenticationMiddleware(api.Conf.TokenVerifier))
-		r.Get("/@me", api.MeEndpoint())
+		r.Use(AuthenticationMiddleware(s.Conf.TokenVerifier))
+		r.Get("/@me", s.MeEndpoint())
 	})
 
 	return r
 }
 
-func (api *API) MeEndpoint() http.HandlerFunc {
-	return Authenticated(func(w http.ResponseWriter, r *http.Request, identity *auth.Identity) {
+func (s *Server) MeEndpoint() http.HandlerFunc {
+	return AuthHandler(func(w http.ResponseWriter, r *http.Request, identity *auth.Identity) {
 		writeJSON(w, http.StatusOK, identity)
 	})
 }
 
-func (api *API) GameEndpoint() http.HandlerFunc {
+func (s *Server) GameEndpoint() http.HandlerFunc {
 	mygame := game.NewGame("my-game")
 
 	server := realtime.NewServer[game.User](
 		mygame,
 		&realtime.Config{
-			Metrics:             &realtime.LocalServerMetrics{},
+			Metrics:             &realtime.EmptyMetrics{},
 			ConnectionLimit:     100,
 			SynchronousMessages: true,
 		},
@@ -68,7 +67,7 @@ func (api *API) GameEndpoint() http.HandlerFunc {
 
 	ctx := context.Background()
 
-	if err := server.Open(ctx, 64); err != nil {
+	if err := server.Open(ctx); err != nil {
 		panic(err)
 	}
 
@@ -85,19 +84,18 @@ func (api *API) GameEndpoint() http.HandlerFunc {
 			return
 		}
 
-		identity, err := auth.GetIdentity(api.Conf.TokenVerifier, r)
+		identity, err := auth.GetIdentity(s.Conf.TokenVerifier, r)
 		if err != nil {
+			conn.Close()
 			return
 		}
 
 		// add the user to the game
+		user := game.User{Id: identity.ID()}
 		ws := &realtime.Websocket{Conn: conn}
 
-		if err = server.Connect(ctx, game.User{Id: identity.ID()}, ws); err != nil {
-			fmt.Println("connection error:", err)
-			ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, err.Error()))
+		if err = server.Connect(user, ws); err != nil {
 			ws.Close()
 		}
-
 	}
 }

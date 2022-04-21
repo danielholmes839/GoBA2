@@ -39,8 +39,8 @@ func AuthenticationMiddleware(verifier auth.TokenVerifier) Middleware {
 
 type AuthenticatedHandlerFunc func(w http.ResponseWriter, r *http.Request, identity *auth.Identity)
 
-// Adds the auth.Identity to the handler func must be used
-func Authenticated(handler AuthenticatedHandlerFunc) http.HandlerFunc {
+// Adds the auth.Identity to the handler func
+func AuthHandler(handler AuthenticatedHandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		identity, ok := r.Context().Value("identity").(*auth.Identity)
 		if !ok {

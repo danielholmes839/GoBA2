@@ -21,6 +21,7 @@ type Identity = {
 
 export type AuthValue = {
   identity: Identity | null;
+  loading: boolean,
   authenticated: boolean;
 }
 
@@ -30,6 +31,7 @@ export type AuthContextValue = AuthValue & {
 }
 
 const defaultAuth = {
+  loading: true,
   authenticated: false,
   identity: null,
   login: () => { },
@@ -51,11 +53,13 @@ export const AuthProvider: React.FC = ({ children }) => {
 
   const loadIdentity = async () => {
     try {
+      setState({ ...state, loading: true })
       const response = await fetch("http://localhost:3000/@me", { credentials: "include" });
       const identity: Identity = await response.json();
-      setState({ ...state, identity: identity, authenticated: true })
+      setState({ ...state, identity: identity, authenticated: true, loading: false })
     } catch {
       console.log("user not logged in")
+      setState({ ...state, identity: null, authenticated: false, loading: false })
     }
   }
 
@@ -65,7 +69,7 @@ export const AuthProvider: React.FC = ({ children }) => {
 
   const logout = async () => {
     deleteAllCookies();
-    setState({ authenticated: false, identity: null });
+    setState({ authenticated: false, identity: null, loading: false });
   }
 
   return <AuthContext.Provider value={{
