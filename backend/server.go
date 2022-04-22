@@ -56,14 +56,11 @@ func (s *Server) MeEndpoint() http.HandlerFunc {
 func (s *Server) GameEndpoint() http.HandlerFunc {
 	mygame := game.NewGame("my-game")
 
-	server := realtime.NewServer[game.User](
-		mygame,
-		&realtime.Config{
-			Metrics:             &realtime.EmptyMetrics{},
-			ConnectionLimit:     100,
-			SynchronousMessages: true,
-		},
-	)
+	server := realtime.NewServer[game.User](mygame, &realtime.Config{
+		Room: realtime.NewRoom(10),
+		Metrics: &realtime.EmptyMetrics{},
+		SynchronousMessages: true,
+	})
 
 	ctx := context.Background()
 

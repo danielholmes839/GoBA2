@@ -1,6 +1,7 @@
 package realtime
 
 import (
+	"context"
 	"io"
 	"time"
 )
@@ -11,26 +12,19 @@ type Connection interface {
 	Receive() ([]byte, error)
 }
 
-type ServerMetrics interface {
-	RecordTask(start time.Time, wait, execution time.Duration)
-}
-
 type Identity interface {
 	ID() string
 }
 
-/* ServerHooks interface
-implemented by games
-*/
-type ServerHooks[I Identity] interface {
-	OnMessage(id string, data []byte)
-	OnConnect(identity I, conn Connection) error
-	OnDisconnect(identity I)
-	OnOpen(scheduler Scheduler)
-	OnClose()
+type Application[I Identity] interface {
+	HandleOpen(ctx context.Context, engine Engine)
+	HandleClose()
+	HandleMessage(id string, data []byte)
+	HandleConnect(identity I, conn Connection) error
+	HandleDisconnect(id string)
 }
 
-type Scheduler interface {
+type Engine interface {
 	After(d time.Duration, f func())
 	At(t time.Time, f func())
 	Interval(t time.Duration, f func())

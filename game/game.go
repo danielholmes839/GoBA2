@@ -1,6 +1,7 @@
 package game
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"goba2/realtime"
@@ -41,13 +42,13 @@ func (g *Game) Tick() {
 	g.counter++
 }
 
-func (g *Game) OnMessage(user string, data []byte) {
+func (g *Game) HandleMessage(user string, data []byte) {
 	fmt.Printf("user: %s message: %s\n", user, string(data))
 	g.users[user].conn.Write(data)
 
 }
 
-func (g *Game) OnConnect(user User, conn realtime.Connection) error {
+func (g *Game) HandleConnect(user User, conn realtime.Connection) error {
 	// connection succeeded
 	fmt.Printf("game: %s new connection id: %s\n", g.name, user.Id)
 	g.users[user.Id] = &UserInfo{
@@ -57,17 +58,17 @@ func (g *Game) OnConnect(user User, conn realtime.Connection) error {
 	return nil
 }
 
-func (g *Game) OnDisconnect(user User) {
+func (g *Game) HandleDisconnect(id string) {
 	// connection disconnected
-	fmt.Printf("game: %s closed connection id: %s\n", g.name, user.Id)
-	delete(g.users, user.Id)
+	fmt.Printf("game: %s closed connection id: %s\n", g.name, id)
+	delete(g.users, id)
 }
 
-func (g *Game) OnClose() {
+func (g *Game) HandleClose() {
 	fmt.Println("game: shutdown!")
 }
 
-func (g *Game) OnOpen(engine realtime.Scheduler) {
+func (g *Game) HandleOpen(ctx context.Context, engine realtime.Engine) {
 	engine.After(time.Second*3, func() {
 		fmt.Println("3 second after (after)")
 	})

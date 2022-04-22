@@ -1,6 +1,9 @@
 package realtime
 
-import "errors"
+import (
+	"context"
+	"errors"
+)
 
 type mockid struct {
 	id string
@@ -26,7 +29,7 @@ func (m *mockgame) OnDisconnect(identity mockid) {
 
 }
 
-func (m *mockgame) OnOpen(scheduler Scheduler) {
+func (m *mockgame) OnOpen(ctx context.Context, engine Engine) {
 
 }
 
