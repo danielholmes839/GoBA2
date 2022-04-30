@@ -13,9 +13,8 @@ func TestServerOpen(t *testing.T) {
 	server := NewServer[mockid](
 		&mockgame{},
 		&Config{
-			Metrics:             &EmptyMetrics{},
-			ConnectionLimit:     1,
-			SynchronousMessages: true,
+			Metrics: &EmptyMetrics{},
+			Room:    NewRoom(1),
 		})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -45,58 +44,105 @@ func TestServerConnect(t *testing.T) {
 		game,
 		&Config{
 			Metrics:             &EmptyMetrics{},
-			ConnectionLimit:     1,
+			Room:                NewRoom(1),
 			SynchronousMessages: true,
 		})
 
 	t.Run("server closed", func(t *testing.T) {
+		// server is closed
 		err := server.Connect(mockid{"1"}, &mockconn{conn: make(chan []byte)})
 		assert.ErrorIs(t, err, ErrServerClosed)
 	})
 
+	// open the server
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	server.Open(ctx)
 
 	t.Run("ok", func(t *testing.T) {
 		// ok
 		err := server.Connect(mockid{"1"}, &mockconn{conn: make(chan []byte)})
 		assert.Nil(t, err)
-		assert.Equal(t, 1, len(server.connections))
+		assert.Equal(t, 1, len(server.room.connections))
 	})
 
 	t.Run("server full", func(t *testing.T) {
 		// connection limit is 1 so the server is already full
 		err := server.Connect(mockid{"1"}, &mockconn{conn: make(chan []byte)})
-		assert.ErrorIs(t, err, ErrServerFull)
-	})
-
-	t.Run("already connected", func(t *testing.T) {
-		// attempt to connect twice with the same id
-		server.connectionLimit = 2
-		err := server.Connect(mockid{"1"}, &mockconn{conn: make(chan []byte)})
-		assert.ErrorIs(t, err, ErrAlreadyConnected)
+		assert.ErrorIs(t, err, ErrRoomFull)
 	})
 
 	t.Run("game.OnConnect error", func(t *testing.T) {
 		game.OnConnectErr = errors.New("game connection rejected")
+		server.room.connectionLimit++
 		err := server.Connect(mockid{"2"}, &mockconn{conn: make(chan []byte)})
 		assert.ErrorIs(t, err, game.OnConnectErr)
 	})
-
-	cancel()
-	time.Sleep(time.Millisecond*5)
-	assert.Equal(t, 0, len(server.connections))
-
 }
 
+func TestServerAfter(t *testing.T) {
+	server := NewServer[mockid](&mockgame{}, &Config{
+		Metrics: &EmptyMetrics{},
+		Room:    NewRoom(1),
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	server.Open(ctx)
+
+	counter := 0
+
+	increment := func() {
+		counter++
+	}
+	// execute an increment after 3 milliseconds
+	server.After(time.Millisecond*3, increment)
+
+	// after 2 milliseconds counter not incremented
+	time.Sleep(time.Millisecond * 2)
+	assert.Equal(t, 0, counter)
+
+	// after 4 milliseconds total counter incremented
+	time.Sleep(time.Millisecond * 2)
+	assert.Equal(t, 1, counter)
+
+	// execute another increment after 3 milliseconds
+	server.After(time.Millisecond*3, increment)
+
+	// cancel should stop the increment
+	cancel()
+
+	// after 4 milliseconds the counter is still 1
+	time.Sleep(time.Millisecond * 4)
+	assert.Equal(t, 1, counter)
+
+	// execute another increment when the context is cancelled
+	server.After(time.Millisecond*1, func() {
+		counter++
+	})
+
+	// the counter is still 1
+	time.Sleep(time.Millisecond * 2)
+	assert.Equal(t, 1, counter)
+}
+
+func TestServerAt(t *testing.T) {
+	server := NewServer[mockid](&mockgame{}, &Config{
+		Metrics: &EmptyMetrics{},
+		Room:    NewRoom(1),
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	server.Open(ctx)
+
+	time.Now().Add(time.Millisecond*1)
+	cancel()
+}
 func TestInterval(t *testing.T) {
 	game := &mockgame{}
 	server := NewServer[mockid](
 		game,
 		&Config{
-			Metrics:             &EmptyMetrics{},
-			ConnectionLimit:     1,
-			SynchronousMessages: true,
+			Metrics: &EmptyMetrics{},
+			Room:    NewRoom(1),
 		})
 
 	counter := 0
@@ -121,7 +167,7 @@ func BenchmarkServer(b *testing.B) {
 		&mockgame{},
 		&Config{
 			Metrics:             &EmptyMetrics{},
-			ConnectionLimit:     1,
+			Room:                NewRoom(1),
 			SynchronousMessages: true,
 		})
 

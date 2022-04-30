@@ -17,23 +17,23 @@ type mockgame struct {
 	OnConnectErr error
 }
 
-func (m *mockgame) OnMessage(id string, data []byte) {
+func (m *mockgame) HandleMessage(id string, data []byte) {
 
 }
 
-func (m *mockgame) OnConnect(identity mockid, conn Connection) error {
+func (m *mockgame) HandleConnect(identity mockid, conn Connection) error {
 	return m.OnConnectErr
 }
 
-func (m *mockgame) OnDisconnect(identity mockid) {
+func (m *mockgame) HandleDisconnect(id string) {
 
 }
 
-func (m *mockgame) OnOpen(ctx context.Context, engine Engine) {
+func (m *mockgame) HandleOpen(ctx context.Context, engine Engine) {
 
 }
 
-func (m *mockgame) OnClose() {
+func (m *mockgame) HandleClose() {
 
 }
 

@@ -49,7 +49,7 @@ func (s *Server[I]) Connect(identity I, conn Connection) error {
 	id := identity.ID()
 
 	// check that the id is not already connected or the server is full
-	if err := s.room.Connect(id, conn); err != nil {
+	if err := s.room.Connect(id); err != nil {
 		return err
 	}
 
@@ -69,6 +69,7 @@ func (s *Server[I]) Connect(identity I, conn Connection) error {
 		// disconnect
 		s.room.Disconnect(id)
 		s.app.HandleDisconnect(id)
+		conn.Close()
 	}()
 
 	go func() {

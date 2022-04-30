@@ -8,17 +8,17 @@ var ErrNotConnected = errors.New("id not connected")
 
 type Room struct {
 	connectionLimit int
-	connections     map[string]Connection
+	connections     map[string]struct{}
 }
 
 func NewRoom(connectionLimit int) *Room {
 	return &Room{
 		connectionLimit: connectionLimit,
-		connections:     map[string]Connection{},
+		connections:     map[string]struct{}{},
 	}
 }
 
-func (r *Room) Connect(id string, conn Connection) error {
+func (r *Room) Connect(id string) error {
 	if len(r.connections) == r.connectionLimit {
 		return ErrRoomFull
 	}
@@ -28,7 +28,7 @@ func (r *Room) Connect(id string, conn Connection) error {
 	}
 
 	// add the connection
-	r.connections[id] = conn
+	r.connections[id] = struct{}{}
 	return nil
 }
 
@@ -38,7 +38,6 @@ func (r *Room) Disconnect(id string) error {
 	}
 
 	// delete the connection
-	r.connections[id].Close()
 	delete(r.connections, id)
 	return nil
 }
