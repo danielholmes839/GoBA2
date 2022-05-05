@@ -75,15 +75,17 @@ func (s *Server) GameEndpoint() http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		// identity, err := auth.GetIdentity(s.Conf.TokenVerifier, r)
+		// if err != nil {
+		// 	return
+		// }
+
+		name := r.URL.Query().Get("name")
+		identity := game.User{Id: name}
+
 		// upgrade the websocket connection
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
-			return
-		}
-
-		identity, err := auth.GetIdentity(s.Conf.TokenVerifier, r)
-		if err != nil {
-			conn.Close()
 			return
 		}
 

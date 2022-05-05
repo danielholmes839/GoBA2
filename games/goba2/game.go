@@ -17,51 +17,61 @@ func (u User) ID() string {
 	return u.Id
 }
 
-type UserInfo struct {
+type Connection struct {
+	io.WriteCloser
 	user User
-	conn io.Writer
 }
 
 type Game struct {
-	name    string
-	counter int
-	users   map[string]*UserInfo
+	name        string
+	counter     int
+	connections map[string]*Connection
 }
 
 func NewGame(name string) *Game {
 	return &Game{
 		// game
-		name:    name,
-		counter: 0,
-		users:   make(map[string]*UserInfo),
+		name:        name,
+		counter:     0,
+		connections: make(map[string]*Connection),
 	}
 }
 
-func (g *Game) Tick() {
-	time.Sleep(time.Millisecond * 10)
-	g.counter++
-}
+func (g *Game) HandleMessage(id string, data []byte) {
+	fmt.Printf("user: %s message: %s\n", id, string(data))
 
-func (g *Game) HandleMessage(user string, data []byte) {
-	fmt.Printf("user: %s message: %s\n", user, string(data))
-	g.users[user].conn.Write(data)
+	// unmarshall the event
+	event := Event{}
+	if err := json.Unmarshal(data, &event); err != nil {
+		return
+	}
 
+	switch event.Code {
+	case 1:
+		// unmarshall move
+		move := EventMove{}
+		if err := json.Unmarshal(event.Data, &move); err != nil {
+			return
+		}
+		fmt.Println(move)
+	}
 }
 
 func (g *Game) HandleConnect(user User, conn realtime.Connection) error {
 	// connection succeeded
 	fmt.Printf("game: %s new connection id: %s\n", g.name, user.Id)
-	g.users[user.Id] = &UserInfo{
-		user: user,
-		conn: conn,
+	g.connections[user.Id] = &Connection{
+		WriteCloser: conn,
+		user:        user,
 	}
+
 	return nil
 }
 
 func (g *Game) HandleDisconnect(id string) {
 	// connection disconnected
 	fmt.Printf("game: %s closed connection id: %s\n", g.name, id)
-	delete(g.users, id)
+	delete(g.connections, id)
 }
 
 func (g *Game) HandleClose() {
@@ -84,8 +94,8 @@ func (g *Game) HandleOpen(ctx context.Context, engine realtime.Engine) {
 
 	engine.Interval(time.Millisecond*1000, func() {
 		data, _ := json.Marshal(interval{Counter: counter})
-		for _, connection := range g.users {
-			connection.conn.Write(data)
+		for _, connection := range g.connections {
+			connection.Write(data)
 		}
 		counter++
 		fmt.Println("1 second interval")
