@@ -28,9 +28,6 @@ func TestLimitRoomDisconnect(t *testing.T) {
 	err := room.Connect("1")
 	assert.Nil(t, err)
 
-	err = room.Disconnect("1")
-	assert.Nil(t, err)
-
-	err = room.Disconnect("1")
-	assert.ErrorIs(t, err, ErrNotConnected)
+	room.Disconnect("1")
+	room.Disconnect("1")
 }

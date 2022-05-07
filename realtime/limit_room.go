@@ -32,12 +32,6 @@ func (r *LimitRoom) Connect(id string) error {
 	return nil
 }
 
-func (r *LimitRoom) Disconnect(id string) error {
-	if _, exists := r.connections[id]; !exists {
-		return ErrNotConnected
-	}
-
-	// delete the connection
+func (r *LimitRoom) Disconnect(id string) {
 	delete(r.connections, id)
-	return nil
 }

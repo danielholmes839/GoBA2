@@ -18,7 +18,7 @@ type Identity interface {
 
 type Room interface {
 	Connect(id string) error
-	Disconnect(id string) error
+	Disconnect(id string)
 }
 
 type App[I Identity] interface {
