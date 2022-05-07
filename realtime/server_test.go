@@ -14,7 +14,7 @@ func TestServerOpen(t *testing.T) {
 		&mockgame{},
 		&Config{
 			Metrics: &EmptyMetrics{},
-			Room:    NewRoom(1),
+			Room:    NewLimitRoom(1),
 		})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -40,11 +40,12 @@ func TestServerOpen(t *testing.T) {
 
 func TestServerConnect(t *testing.T) {
 	game := &mockgame{}
+	room := NewLimitRoom(1)
 	server := NewServer[mockid](
 		game,
 		&Config{
 			Metrics:             &EmptyMetrics{},
-			Room:                NewRoom(1),
+			Room:                room,
 			SynchronousMessages: true,
 		})
 
@@ -63,7 +64,7 @@ func TestServerConnect(t *testing.T) {
 		// ok
 		err := server.Connect(mockid{"1"}, &mockconn{conn: make(chan []byte)})
 		assert.Nil(t, err)
-		assert.Equal(t, 1, len(server.room.connections))
+		assert.Equal(t, 1, len(room.connections))
 	})
 
 	t.Run("server full", func(t *testing.T) {
@@ -74,7 +75,7 @@ func TestServerConnect(t *testing.T) {
 
 	t.Run("game.OnConnect error", func(t *testing.T) {
 		game.OnConnectErr = errors.New("game connection rejected")
-		server.room.connectionLimit++
+		room.connectionLimit++
 		err := server.Connect(mockid{"2"}, &mockconn{conn: make(chan []byte)})
 		assert.ErrorIs(t, err, game.OnConnectErr)
 	})
@@ -83,7 +84,7 @@ func TestServerConnect(t *testing.T) {
 func TestServerAfter(t *testing.T) {
 	server := NewServer[mockid](&mockgame{}, &Config{
 		Metrics: &EmptyMetrics{},
-		Room:    NewRoom(1),
+		Room:    NewLimitRoom(1),
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -128,12 +129,12 @@ func TestServerAfter(t *testing.T) {
 func TestServerAt(t *testing.T) {
 	server := NewServer[mockid](&mockgame{}, &Config{
 		Metrics: &EmptyMetrics{},
-		Room:    NewRoom(1),
+		Room:    NewLimitRoom(1),
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	server.Open(ctx)
 
-	time.Now().Add(time.Millisecond*1)
+	time.Now().Add(time.Millisecond * 1)
 	cancel()
 }
 func TestInterval(t *testing.T) {
@@ -142,7 +143,7 @@ func TestInterval(t *testing.T) {
 		game,
 		&Config{
 			Metrics: &EmptyMetrics{},
-			Room:    NewRoom(1),
+			Room:    NewLimitRoom(1),
 		})
 
 	counter := 0
@@ -167,7 +168,7 @@ func BenchmarkServer(b *testing.B) {
 		&mockgame{},
 		&Config{
 			Metrics:             &EmptyMetrics{},
-			Room:                NewRoom(1),
+			Room:                NewLimitRoom(1),
 			SynchronousMessages: true,
 		})
 

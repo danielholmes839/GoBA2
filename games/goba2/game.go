@@ -1,4 +1,4 @@
-package game
+package goba2
 
 import (
 	"context"

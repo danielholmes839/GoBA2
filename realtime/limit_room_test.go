@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRoomConnect(t *testing.T) {
-	room := NewRoom(2)
+func TestLimitRoomConnect(t *testing.T) {
+	room := NewLimitRoom(2)
 
 	err := room.Connect("1")
 	assert.Nil(t, err)
@@ -22,8 +22,8 @@ func TestRoomConnect(t *testing.T) {
 	assert.ErrorIs(t, err, ErrRoomFull)
 }
 
-func TestRoomDisconnect(t *testing.T) {
-	room := NewRoom(2)
+func TestLimitRoomDisconnect(t *testing.T) {
+	room := NewLimitRoom(2)
 
 	err := room.Connect("1")
 	assert.Nil(t, err)

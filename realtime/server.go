@@ -11,7 +11,7 @@ var ErrServerClosed = errors.New("server closed")
 var ErrServerAlreadyOpen = errors.New("server already open")
 
 type Config struct {
-	Room                *Room
+	Room                Room
 	Metrics             Metrics
 	SynchronousMessages bool
 }
@@ -19,14 +19,14 @@ type Config struct {
 type Server[I Identity] struct {
 	sync.Mutex
 	ctx                 context.Context
-	app                 Application[I]
+	app                 App[I]
 	metrics             Metrics
-	room                *Room
+	room                Room
 	synchronousMessages bool
 	open                bool
 }
 
-func NewServer[I Identity](app Application[I], conf *Config) *Server[I] {
+func NewServer[I Identity](app App[I], conf *Config) *Server[I] {
 	return &Server[I]{
 		Mutex:               sync.Mutex{},
 		app:                 app,

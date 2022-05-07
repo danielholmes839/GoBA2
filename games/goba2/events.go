@@ -1,4 +1,4 @@
-package game
+package goba2
 
 import (
 	"encoding/json"
@@ -6,6 +6,12 @@ import (
 	"strconv"
 	"time"
 )
+
+
+func Example() {
+	return
+}
+
 
 type StrFloat float64
 

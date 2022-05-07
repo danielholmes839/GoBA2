@@ -6,19 +6,19 @@ var ErrRoomFull = errors.New("server full")
 var ErrAlreadyConnected = errors.New("id already connected")
 var ErrNotConnected = errors.New("id not connected")
 
-type Room struct {
+type LimitRoom struct {
 	connectionLimit int
 	connections     map[string]struct{}
 }
 
-func NewRoom(connectionLimit int) *Room {
-	return &Room{
+func NewLimitRoom(connectionLimit int) *LimitRoom {
+	return &LimitRoom{
 		connectionLimit: connectionLimit,
 		connections:     map[string]struct{}{},
 	}
 }
 
-func (r *Room) Connect(id string) error {
+func (r *LimitRoom) Connect(id string) error {
 	if len(r.connections) == r.connectionLimit {
 		return ErrRoomFull
 	}
@@ -32,7 +32,7 @@ func (r *Room) Connect(id string) error {
 	return nil
 }
 
-func (r *Room) Disconnect(id string) error {
+func (r *LimitRoom) Disconnect(id string) error {
 	if _, exists := r.connections[id]; !exists {
 		return ErrNotConnected
 	}

@@ -16,7 +16,12 @@ type Identity interface {
 	ID() string
 }
 
-type Application[I Identity] interface {
+type Room interface {
+	Connect(id string) error
+	Disconnect(id string) error
+}
+
+type App[I Identity] interface {
 	HandleOpen(ctx context.Context, engine Engine)
 	HandleClose()
 	HandleMessage(id string, data []byte)
