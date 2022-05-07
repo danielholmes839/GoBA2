@@ -4,8 +4,6 @@ import (
 	"net/http"
 )
 
-type Middleware func(next http.Handler) http.Handler
-
 func CORSMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Credentials", "true")

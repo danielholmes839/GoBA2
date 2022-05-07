@@ -9,29 +9,19 @@ import (
 	"time"
 )
 
-type User struct {
-	Id string
-}
-
-func (u User) ID() string {
-	return u.Id
-}
-
 type Connection struct {
 	io.WriteCloser
-	user User
+	id string
 }
 
 type Game struct {
-	name        string
 	counter     int
 	connections map[string]*Connection
 }
 
-func NewGame(name string) *Game {
+func NewGame() *Game {
 	return &Game{
 		// game
-		name:        name,
 		counter:     0,
 		connections: make(map[string]*Connection),
 	}
@@ -57,12 +47,14 @@ func (g *Game) HandleMessage(id string, data []byte) {
 	}
 }
 
-func (g *Game) HandleConnect(user User, conn realtime.Connection) error {
+func (g *Game) HandleConnect(identity realtime.ID, conn realtime.Connection) error {
 	// connection succeeded
-	fmt.Printf("game: %s new connection id: %s\n", g.name, user.Id)
-	g.connections[user.Id] = &Connection{
+	id := identity.ID()
+	fmt.Printf("new connection id: %s\n", id)
+
+	g.connections[id] = &Connection{
 		WriteCloser: conn,
-		user:        user,
+		id:          id,
 	}
 
 	return nil
@@ -70,7 +62,7 @@ func (g *Game) HandleConnect(user User, conn realtime.Connection) error {
 
 func (g *Game) HandleDisconnect(id string) {
 	// connection disconnected
-	fmt.Printf("game: %s closed connection id: %s\n", g.name, id)
+	fmt.Printf("closed connection id: %s\n", id)
 	delete(g.connections, id)
 }
 
