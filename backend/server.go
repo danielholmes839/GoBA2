@@ -34,7 +34,7 @@ func (s *Server) GameEndpoint() http.HandlerFunc {
 	game := goba2.NewGame("app")
 
 	server := realtime.NewServer[goba2.User](game, &realtime.Config{
-		Room:                realtime.NewLimitRoom(10),
+		Room:                realtime.NewBasicRoom(10),
 		Metrics:             &realtime.EmptyMetrics{},
 		SynchronousMessages: true,
 	})

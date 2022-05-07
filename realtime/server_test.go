@@ -14,7 +14,7 @@ func TestServerOpen(t *testing.T) {
 		&mockgame{},
 		&Config{
 			Metrics: &EmptyMetrics{},
-			Room:    NewLimitRoom(1),
+			Room:    NewBasicRoom(1),
 		})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -40,7 +40,7 @@ func TestServerOpen(t *testing.T) {
 
 func TestServerConnect(t *testing.T) {
 	game := &mockgame{}
-	room := NewLimitRoom(1)
+	room := NewBasicRoom(1)
 	server := NewServer[mockid](
 		game,
 		&Config{
@@ -84,7 +84,7 @@ func TestServerConnect(t *testing.T) {
 func TestServerAfter(t *testing.T) {
 	server := NewServer[mockid](&mockgame{}, &Config{
 		Metrics: &EmptyMetrics{},
-		Room:    NewLimitRoom(1),
+		Room:    NewBasicRoom(1),
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -129,7 +129,7 @@ func TestServerAfter(t *testing.T) {
 func TestServerAt(t *testing.T) {
 	server := NewServer[mockid](&mockgame{}, &Config{
 		Metrics: &EmptyMetrics{},
-		Room:    NewLimitRoom(1),
+		Room:    NewBasicRoom(1),
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	server.Open(ctx)
@@ -143,7 +143,7 @@ func TestInterval(t *testing.T) {
 		game,
 		&Config{
 			Metrics: &EmptyMetrics{},
-			Room:    NewLimitRoom(1),
+			Room:    NewBasicRoom(1),
 		})
 
 	counter := 0
@@ -168,7 +168,7 @@ func BenchmarkServer(b *testing.B) {
 		&mockgame{},
 		&Config{
 			Metrics:             &EmptyMetrics{},
-			Room:                NewLimitRoom(1),
+			Room:                NewBasicRoom(1),
 			SynchronousMessages: true,
 		})
 

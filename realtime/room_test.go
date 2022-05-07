@@ -7,7 +7,7 @@ import (
 )
 
 func TestLimitRoomConnect(t *testing.T) {
-	room := NewLimitRoom(2)
+	room := NewBasicRoom(2)
 
 	err := room.Connect("1")
 	assert.Nil(t, err)
@@ -23,7 +23,7 @@ func TestLimitRoomConnect(t *testing.T) {
 }
 
 func TestLimitRoomDisconnect(t *testing.T) {
-	room := NewLimitRoom(2)
+	room := NewBasicRoom(2)
 
 	err := room.Connect("1")
 	assert.Nil(t, err)

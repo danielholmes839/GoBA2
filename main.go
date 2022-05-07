@@ -6,7 +6,6 @@ import (
 )
 
 func main() {
-	server := backend.NewServer()
-	router := server.Routes()
+	router := backend.NewServer().Routes()
 	http.ListenAndServe("localhost:3000", router)
 }
