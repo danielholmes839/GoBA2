@@ -19,6 +19,8 @@ type ClientInfo struct {
 
 // Game struct
 type Game struct {
+	shutdown context.CancelFunc
+
 	// Game settings
 	tps int // "Ticks per second" the number of
 
@@ -36,11 +38,12 @@ type Game struct {
 }
 
 // NewGame func
-func NewGame(tps int) *Game {
+func NewGame(tps int, shutdown context.CancelFunc) *Game {
 	// events queue
 	events := realtime.NewQueue[*util.ClientEvent]()
 
 	g := &Game{
+		shutdown:    shutdown,
 		tps:         tps,
 		events:      events,
 		global:      realtime.NewSubscription("global"),
@@ -75,36 +78,64 @@ func NewGame(tps int) *Game {
 }
 
 func (g *Game) HandleOpen(ctx context.Context, engine realtime.Engine) {
+	fmt.Println("game started")
 	t := time.Duration(int(time.Second) / g.tps)
+
 	engine.Interval(t, g.tick)
+
+	engine.After(time.Second*3, func() {
+		// cancel the context after 3 seconds if no one joins the game
+		if len(g.clients) == 0 {
+			g.shutdown()
+		}
+	})
 }
 
 func (g *Game) HandleClose() {
-
+	fmt.Println("game stopped")
 }
 
 func (g *Game) HandleConnect(identity realtime.ID, conn realtime.Connection) error {
 	id := identity.ID()
-	g.global.Subscribe(id, conn)
-	util.WriteMessage("setup", NewSetupUpdate(g, id), conn)
-
 	champion := NewChampion(id)
 	team := g.getNextTeam()
 	team.addClient(id, conn, champion)
 	g.addClientInfo(id, champion, team)
 
+	// successfully connected
+	util.WriteMessage("connection", util.Marshall(struct {
+		// joinJSON from GoBA package
+		Success bool   `json:"success"`
+		Error   string `json:"error"`
+	}{
+		Success: true,
+		Error:   "",
+	}), conn)
+
+	// Send the new player setup data
+	util.WriteMessage("setup", NewSetupUpdate(g, id), conn)
+
 	// Send clients the updated teams
+	g.global.Subscribe(id, conn)
 	util.BroadcastMessage("update-teams", NewTeamsUpdate(g), g.global)
+
+	fmt.Printf("'%s' connected\n", id)
 	return nil
 }
 
 func (g *Game) HandleDisconnect(id string) {
 	// Disconnect the client
+	g.global.Unsubscribe(id)
 	g.getClientTeam(id).removeClient(id) // Remove client from team
 	delete(g.clients, id)                // Remove client from game
 
 	// Send clients the updated teams
 	util.BroadcastMessage("update-teams", NewTeamsUpdate(g), g.global)
+	fmt.Printf("'%s' disconnected\n", id)
+
+	if len(g.clients) == 0 {
+		g.shutdown()
+	}
 }
 
 // Handle func
@@ -116,7 +147,7 @@ func (g *Game) HandleMessage(id string, data []byte) {
 
 	event.Client = id
 
-	fmt.Printf("category:'%s' name:'%s' client:'%s'\n", event.GetCategory(), event.GetName(), id)
+	// fmt.Printf("category:'%s' name:'%s' client:'%s'\n", event.GetCategory(), event.GetName(), id)
 	switch event.Category {
 	case "game":
 		g.events.Push(event)
