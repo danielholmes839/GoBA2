@@ -2,8 +2,9 @@ import Vue from "vue";
 import axios from "axios";
 import { setup } from "../game";
 
-const host = "localhost:3000" // "goba.holmes-dev.com"; // "localhost:3000";
-console.log(host);
+const local = false;
+const httpHost = (local) ? "http://localhost:3000" : "https://goba.holmes-dev.com";
+const websocketHost = (local) ? "ws://localhost:3000" : "wss://goba.holmes-dev.com";
 
 let app = new Vue({
   el: "#app",
@@ -46,7 +47,7 @@ let app = new Vue({
     createGame: function () {
       let name = this.createName;
 
-      axios.get(`http://${host}/create?name=${name}`).then((result) => {
+      axios.get(`${httpHost}/goba/v1/create?name=${name}`).then((result) => {
         this.code = result.data.code;
 
         if (result.data.success) {
@@ -59,7 +60,7 @@ let app = new Vue({
     },
 
     createGameJoin: function (code, name) {
-      let url = `ws://${host}/join?code=${code}&name=${name}`;
+      let url = `${websocketHost}/goba/v1/join?code=${code}&name=${name}`;
       let socket = new WebSocket(url);
 
       socket.onmessage = (message) => {
@@ -77,7 +78,7 @@ let app = new Vue({
     },
 
     joinGame: function () {
-      let url = `ws://${host}/join?code=${this.code}&name=${this.joinName}`;
+      let url = `${websocketHost}/goba/v1/join?code=${this.code}&name=${this.joinName}`;
       let socket = new WebSocket(url);
 
       socket.onmessage = (message) => {
