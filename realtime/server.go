@@ -55,6 +55,7 @@ func (s *Server[I]) Connect(identity I, conn Connection) error {
 
 	// check that the identity successfully connected to the game
 	if err := s.app.HandleConnect(identity, conn); err != nil {
+		s.room.Disconnect(id)
 		return err
 	}
 
