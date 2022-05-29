@@ -4,7 +4,6 @@ import "errors"
 
 var ErrRoomFull = errors.New("server full")
 var ErrAlreadyConnected = errors.New("id already connected")
-var ErrNotConnected = errors.New("id not connected")
 
 type BasicRoom struct {
 	connectionLimit int

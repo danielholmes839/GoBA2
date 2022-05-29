@@ -1,6 +1,8 @@
 package realtime
 
-import "io"
+import (
+	"io"
+)
 
 type Subscription struct {
 	name        string
