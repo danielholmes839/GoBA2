@@ -171,7 +171,7 @@ func (s *Server[I]) processMessages(id string, conn Connection, process func(id 
 }
 
 /* processMessagesAsynchronously
-call game.OnMessage without acquiring the lock. better for real-time games
+call app.HandleMessage without acquiring the lock. better for real-time games
 better performance since messages can be deserialized without acquiring the lock
 */
 func (s *Server[I]) processMessagesAsynchronously(id string, data []byte) {

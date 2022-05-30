@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"goba2/games/goba/util"
 	"goba2/realtime"
-	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -28,16 +27,6 @@ type infoJSON struct {
 	LiveGames int `json:"games"`
 }
 
-func createCode() string {
-	letters := []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-	r := make([]rune, 6)
-	for i := range r {
-		r[i] = letters[rand.Intn(len(letters))]
-	}
-	code := string(r)
-	return code
-}
-
 type Endpoints struct {
 	TPS         int
 	PlayerLimit int // per game
@@ -47,6 +36,7 @@ type Endpoints struct {
 
 func (e *Endpoints) CreateEndpoint() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// create a new GoBA instance
 		ctx, cancel := context.WithTimeout(context.Background(), e.Timeout)
 		instance := realtime.NewServer[realtime.ID](
 			NewGoba(e.TPS, cancel),
@@ -57,15 +47,19 @@ func (e *Endpoints) CreateEndpoint() http.HandlerFunc {
 			},
 		)
 		_ = instance.Open(ctx)
-		code := createCode()
+
+		code := util.Code()
 		e.Instances[code] = instance
 
+
 		go func() {
+			// delete the instance when the context ends
 			<-ctx.Done()
 			delete(e.Instances, code)
 		}()
-
-		w.Write(util.Marshall(createJSON{
+		
+		// 
+		w.Write(util.Marshall(&createJSON{
 			Code:    code,
 			Success: true,
 			Error:   "",
@@ -141,6 +135,10 @@ func (e *Endpoints) JoinEndpoint() http.HandlerFunc {
 			return
 		}
 	}
+}
+
+func (e *Endpoints) joinError() {
+
 }
 
 func (e *Endpoints) InfoEndpoint() http.HandlerFunc {
