@@ -1,6 +1,6 @@
 # https://github.com/antonputra/lesson-087/blob/main/.github/workflows/gcp.yml
 ---
-name: GCP - Artifact Registry
+name: Update Artifact Registry
 on:
   push:
     branches: [main]
