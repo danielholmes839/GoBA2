@@ -30,10 +30,8 @@ jobs:
           gcloud auth configure-docker --quiet
           gcloud auth configure-docker $REGION-docker.pkg.dev --quiet
       - name: Push to Artifact Registry
-        env:
-          GIT_TAG: ${{ steps.increment-git-tag.outputs.git-tag }}
         run: |-
           docker tag $IMAGE_NAME:latest $REGION-docker.pkg.dev/$PROJECT_ID/$REGISTRY/$IMAGE_NAME:latest
-          docker tag $IMAGE_NAME:latest $REGION-docker.pkg.dev/$PROJECT_ID/$REGISTRY/$IMAGE_NAME:$GIT_TAG
+          docker tag $IMAGE_NAME:latest $REGION-docker.pkg.dev/$PROJECT_ID/$REGISTRY/$IMAGE_NAME:$GITHUB_SHA
           docker push $REGION-docker.pkg.dev/$PROJECT_ID/$REGISTRY/$IMAGE_NAME:latest
-          docker push $REGION-docker.pkg.dev/$PROJECT_ID/$REGISTRY/$IMAGE_NAME:$GIT_TAG
+          docker push $REGION-docker.pkg.dev/$PROJECT_ID/$REGISTRY/$IMAGE_NAME:$GITHUB_SHA
