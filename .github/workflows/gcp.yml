@@ -10,9 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       IMAGE_NAME: goba2
-      PROJECT_ID: holmes-dev
-      REGISTRY: holmes-container-registry
-      REGION: northamerica-northeast1
+      GCP_PROJECT: holmes-dev
+      GCP_REGISTRY: holmes-container-registry
+      GCP_REGION: northamerica-northeast1
     steps:
       - name: "GCP Checkout"
         uses: actions/checkout@v2
@@ -35,5 +35,7 @@ jobs:
 
       - name: "Docker Push"
         run: |-
-          docker tag goba2:latest northamerica-northeast1-docker.pkg.dev/holmes-dev/holmes-container-registry/goba2:latest
-          docker push northamerica-northeast1-docker.pkg.dev/holmes-dev/holmes-container-registry/goba2:latest
+          docker tag $IMAGE_NAME:latest $GCP_REGION-docker.pkg.dev/$GCP_PROJECT/$GCP_REGISTRY/$IMAGE_NAME:latest
+          docker tag $IMAGE_NAME:latest $GCP_REGION-docker.pkg.dev/$GCP_PROJECT/$GCP_REGISTRY/$IMAGE_NAME:$GITHUB_SHA
+          docker push $GCP_REGION-docker.pkg.dev/$GCP_PROJECT/$GCP_REGISTRY/$IMAGE_NAME:latest
+          docker push $GCP_REGION-docker.pkg.dev/$GCP_PROJECT/$GCP_REGISTRY/$IMAGE_NAME:$GITHUB_SHA
