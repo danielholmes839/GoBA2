@@ -6,7 +6,7 @@ on:
     branches: [main]
 jobs:
   build-push-artifact-registry:
-    name: Build and Push to GCP
+    name: Update Artifact Registry
     runs-on: ubuntu-latest
     env:
       IMAGE_NAME: goba2
@@ -28,6 +28,7 @@ jobs:
       - name: "GCP Config"
         run: |-
           gcloud info
+          echo $REGION
           gcloud auth configure-docker $REGION-docker.pkg.dev --quiet
 
       - name: "Docker Build"
